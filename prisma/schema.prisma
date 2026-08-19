@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Operator {
+  id           String                @id @default(cuid())
+  companyName  String
+  email        String                @unique
+  passwordHash String
+  balance      Float                 @default(5000.0) // Starting demo prepaid GGR credit
+  currency     String                @default("INR")
+  ggrRate      Float                 @default(10.0)   // 10% Revenue share
+  status       String                @default("ACTIVE") // ACTIVE, SUSPENDED
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  tokens       ApiToken[]
+  sessions     GameSession[]
+  rounds       GameRound[]
+  transactions OperatorTransaction[]
+  webhookLogs  WebhookLog[]
+
+  @@map("operators")
+}
+
+model ApiToken {
+  id          String   @id @default(cuid())
+  operatorId  String
+  operator    Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  token       String   @unique // Public API token e.g. "roy_live_..."
+  secretKey   String   // Private 256-bit encryption key
+  name        String   @default("Default Production Key")
+  isLive      Boolean  @default(true)
+  ipWhitelist String?  // Comma-separated allowed IPs. Null = open/any
+  createdAt   DateTime @default(now())
+
+  @@index([operatorId])
+  @@map("api_tokens")
+}
+
+model GameSession {
+  id          String       @id @default(cuid())
+  sessionId   String       @unique // Unique secure session UUID
+  operatorId  String
+  operator    Operator     @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  userId      String       // Client player ID
+  gameUid     String       // royal_coinflip, royal_andarbahar, royal_chickencross, royal_aviator
+  balance     Float        // Initial balance
+  currency    String       @default("INR")
+  callbackUrl String       // Client settlement endpoint
+  returnUrl   String       // Exit game URL
+  status      String       @default("ACTIVE") // ACTIVE, CLOSED
+  createdAt   DateTime     @default(now())
+  expiresAt   DateTime
+  rounds      GameRound[]
+  webhookLogs WebhookLog[]
+
+  @@index([operatorId])
+  @@map("game_sessions")
+}
+
+model GameRound {
+  id             String       @id @default(cuid())
+  serialNumber   String       @unique // Idempotency key
+  sessionId      String?
+  session        GameSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  operatorId     String
+  operator       Operator     @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  userId         String
+  gameUid        String
+  gameName       String
+  gameRound      String?
+  betAmount      Float
+  winAmount      Float
+  creditAmount   Float        // Authoritative new player balance
+  ggrFeeDeducted Float        @default(0.0) // GGR fee charged to operator
+  rawPayload     String?
+  createdAt      DateTime     @default(now())
+
+  @@index([operatorId])
+  @@map("game_rounds")
+}
+
+model WebhookLog {
+  id           String       @id @default(cuid())
+  operatorId   String
+  operator     Operator     @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  sessionId    String?
+  session      GameSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  serialNumber String
+  targetUrl    String
+  payload      String
+  responseCode Int?
+  responseBody String?
+  status       String       @default("SUCCESS") // SUCCESS, FAILED, RETRYING
+  attempts     Int          @default(1)
+  createdAt    DateTime     @default(now())
+
+  @@index([operatorId])
+  @@map("webhook_logs")
+}
+
+model OperatorTransaction {
+  id           String   @id @default(cuid())
+  operatorId   String
+  operator     Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  type         String   // DEPOSIT, GGR_FEE, ADJUSTMENT
+  amount       Float
+  balanceAfter Float
+  referenceId  String?
+  description  String?
+  createdAt    DateTime @default(now())
+
+  @@index([operatorId])
+  @@map("operator_transactions")
+}
