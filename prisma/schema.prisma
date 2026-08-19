@@ -3,24 +3,28 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Operator {
-  id           String                @id @default(cuid())
-  companyName  String
-  email        String                @unique
-  passwordHash String
-  balance      Float                 @default(5000.0) // Starting demo prepaid GGR credit
-  currency     String                @default("INR")
-  ggrRate      Float                 @default(10.0)   // 10% Revenue share
-  status       String                @default("ACTIVE") // ACTIVE, SUSPENDED
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  tokens       ApiToken[]
-  sessions     GameSession[]
-  rounds       GameRound[]
+  id               String                @id @default(cuid())
+  companyName      String
+  email            String                @unique
+  passwordHash     String
+  balance          Float                 @default(10000.0) // Starting demo prepaid GGR credit
+  currency         String                @default("INR")
+  ggrRate          Float                 @default(10.0)   // 10% Revenue share
+  isAdmin          Boolean               @default(false)  // Master Provider Admin
+  status           String                @default("ACTIVE") // ACTIVE, SUSPENDED
+  callbackUrl      String?               @default("https://ggrcasinotest.vercel.app/api/callback")
+  encryptCallbacks Boolean               @default(false)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  tokens           ApiToken[]
+  sessions         GameSession[]
+  rounds           GameRound[]
   transactions OperatorTransaction[]
   webhookLogs  WebhookLog[]
 
@@ -33,7 +37,7 @@ model ApiToken {
   operator    Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   token       String   @unique // Public API token e.g. "roy_live_..."
   secretKey   String   // Private 256-bit encryption key
-  name        String   @default("Default Production Key")
+  name        String   @default("Production Key")
   isLive      Boolean  @default(true)
   ipWhitelist String?  // Comma-separated allowed IPs. Null = open/any
   createdAt   DateTime @default(now())
@@ -48,7 +52,7 @@ model GameSession {
   operatorId  String
   operator    Operator     @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   userId      String       // Client player ID
-  gameUid     String       // royal_coinflip, royal_andarbahar, royal_chickencross, royal_aviator
+  gameUid     String       // royal_coinflip, royal_andarbahar, royal_chickencross, royal_aviator, royal_mines, royal_roulette, or external UID
   balance     Float        // Initial balance
   currency    String       @default("INR")
   callbackUrl String       // Client settlement endpoint
@@ -117,4 +121,45 @@ model OperatorTransaction {
 
   @@index([operatorId])
   @@map("operator_transactions")
+}
+
+model ExternalProvider {
+  id          String         @id @default(cuid())
+  brandId     Int            @unique
+  name        String
+  type        String         @default("NEXX_AGGREGATOR") // ROYAL_NATIVE, NEXX_AGGREGATOR, DIRECT_RGS, CUSTOM_HTTP
+  apiUrl      String?        @default("https://api.nexxapi.tech/api/v1")
+  apiToken    String?
+  apiSecret   String?
+  logo        String?
+  isActive    Boolean        @default(true)
+  gameCount   Int            @default(0)
+  ggrMargin   Float          @default(10.0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  games       ExternalGame[]
+
+  @@map("external_providers")
+}
+
+model ExternalGame {
+  id            String           @id @default(cuid())
+  providerId    String
+  provider      ExternalProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  gameId        Int?
+  gameUid       String           @unique
+  name          String
+  category      String           @default("slots") // slots, live, crash, table, originals
+  rtp           Float            @default(96.5)
+  volatility    String           @default("MEDIUM") // LOW, MEDIUM, HIGH, VERY_HIGH
+  maxMultiplier String           @default("5000x")
+  thumbnail     String?
+  banner        String?
+  isActive      Boolean          @default(true)
+  isFeatured    Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([providerId])
+  @@map("external_games")
 }
