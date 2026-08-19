@@ -8,6 +8,77 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id           String        @id @default(cuid())
+  username     String        @unique
+  email        String?       @unique
+  passwordHash String
+  balance      Float         @default(1000.0)
+  currency     String        @default("INR")
+  isAdmin      Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+  rounds       GameRound[]
+
+  @@map("users")
+}
+
+model Transaction {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   // DEPOSIT, WITHDRAWAL, BET, WIN
+  amount       Float
+  balanceAfter Float
+  referenceId  String?
+  description  String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("transactions")
+}
+
+model GameRound {
+  id             String       @id @default(cuid())
+  serialNumber   String       @unique // Idempotency key
+  sessionId      String?
+  session        GameSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  operatorId     String?
+  operator       Operator?    @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  memberAccount  String?      // userId for player casino
+  user           User?        @relation(fields: [memberAccount], references: [id], onDelete: Cascade)
+  userId         String?
+  gameId         Int?
+  gameUid        String
+  gameName       String?
+  gameRound      String?
+  betAmount      Float        @default(0)
+  winAmount      Float        @default(0)
+  creditAmount   Float        // Authoritative new player balance
+  ggrFeeDeducted Float        @default(0.0) // GGR fee charged to operator
+  rawPayload     String?
+  createdAt      DateTime     @default(now())
+
+  @@index([memberAccount])
+  @@map("game_rounds")
+}
+
+model SiteSetting {
+  id               String   @id @default("default")
+  siteName         String   @default("NEXX CASINO")
+  siteSubtitle     String   @default("Casino Royale")
+  logoUrl          String?
+  themeColor       String   @default("gold") // gold, emerald, ruby, purple, blue
+  callbackUrl      String   @default("https://your-domain.com/api/callback")
+  returnUrl        String   @default("https://your-domain.com/lobby")
+  currency         String   @default("INR")
+  enabledProviders String?  // JSON array of enabled brand_ids, e.g. "[57,45,49]". Null = all providers visible.
+  updatedAt        DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
 model Operator {
   id               String                @id @default(cuid())
   companyName      String
@@ -25,8 +96,8 @@ model Operator {
   tokens           ApiToken[]
   sessions         GameSession[]
   rounds           GameRound[]
-  transactions OperatorTransaction[]
-  webhookLogs  WebhookLog[]
+  transactions     OperatorTransaction[]
+  webhookLogs      WebhookLog[]
 
   @@map("operators")
 }
@@ -65,28 +136,6 @@ model GameSession {
 
   @@index([operatorId])
   @@map("game_sessions")
-}
-
-model GameRound {
-  id             String       @id @default(cuid())
-  serialNumber   String       @unique // Idempotency key
-  sessionId      String?
-  session        GameSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  operatorId     String
-  operator       Operator     @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  userId         String
-  gameUid        String
-  gameName       String
-  gameRound      String?
-  betAmount      Float
-  winAmount      Float
-  creditAmount   Float        // Authoritative new player balance
-  ggrFeeDeducted Float        @default(0.0) // GGR fee charged to operator
-  rawPayload     String?
-  createdAt      DateTime     @default(now())
-
-  @@index([operatorId])
-  @@map("game_rounds")
 }
 
 model WebhookLog {
