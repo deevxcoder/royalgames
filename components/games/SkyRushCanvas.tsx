@@ -1,0 +1,413 @@
+"use client";
+
+import React, { useEffect, useRef } from "react";
+
+interface SkyRushCanvasProps {
+  gameState: "COUNTDOWN" | "FLYING" | "CRASHED";
+  multiplier: number;
+  countdown: number;
+  crashMultiplier?: number;
+}
+
+export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
+  gameState,
+  multiplier,
+  countdown,
+  crashMultiplier,
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let time = 0;
+
+    // Starfield particles
+    const stars: Array<{ x: number; y: number; size: number; speed: number; opacity: number }> = [];
+    for (let i = 0; i < 80; i++) {
+      stars.push({
+        x: Math.random() * 1000,
+        y: Math.random() * 600,
+        size: Math.random() * 2 + 0.5,
+        speed: Math.random() * 2 + 1,
+        opacity: Math.random() * 0.7 + 0.3,
+      });
+    }
+
+    // Exhaust particles
+    const exhaustParticles: Array<{ x: number; y: number; size: number; life: number; color: string }> = [];
+
+    // Crash explosion particles
+    const crashParticles: Array<{ x: number; y: number; vx: number; vy: number; life: number; color: string }> = [];
+    let shockwaveRadius = 0;
+
+    const render = () => {
+      time += 0.02;
+
+      // Handle Resize
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const width = rect.width;
+      const height = rect.height;
+
+      if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+      }
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+
+      // 1. Background Sky Atmosphere Gradient (Dynamic based on multiplier)
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      if (gameState === "CRASHED") {
+        grad.addColorStop(0, "#1a080c");
+        grad.addColorStop(0.6, "#120508");
+        grad.addColorStop(1, "#080304");
+      } else if (multiplier > 50) {
+        // Cosmic Gold / Space
+        grad.addColorStop(0, "#190e2b");
+        grad.addColorStop(0.5, "#0e091a");
+        grad.addColorStop(1, "#07050d");
+      } else if (multiplier > 10) {
+        // Deep Stratosphere Purple
+        grad.addColorStop(0, "#0c152e");
+        grad.addColorStop(0.5, "#090d1f");
+        grad.addColorStop(1, "#050711");
+      } else {
+        // Cyber Blue / Night
+        grad.addColorStop(0, "#091426");
+        grad.addColorStop(0.6, "#070c17");
+        grad.addColorStop(1, "#05070d");
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. Parallax Stars / Cyber Grid
+      const starSpeedMultiplier = gameState === "FLYING" ? Math.min(6, 1 + Math.log2(multiplier) * 1.2) : 0.5;
+
+      stars.forEach((star) => {
+        star.x -= star.speed * starSpeedMultiplier;
+        star.y += star.speed * 0.4 * starSpeedMultiplier;
+
+        if (star.x < 0) star.x = width;
+        if (star.y > height) star.y = 0;
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity * (0.6 + Math.sin(time * 3 + star.x) * 0.3)})`;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // 3. Cyber Coordinates Grid Lines
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.07)";
+      ctx.lineWidth = 1;
+      const gridSpacing = 60;
+      const offsetX = (time * 40 * starSpeedMultiplier) % gridSpacing;
+      const offsetY = (time * 20 * starSpeedMultiplier) % gridSpacing;
+
+      for (let x = -gridSpacing + offsetX; x < width; x += gridSpacing) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = offsetY; y < height; y += gridSpacing) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      // Origin Point
+      const originX = 50;
+      const originY = height - 50;
+
+      // 4. Calculate Jet Flight Position along Exponential Curve
+      let jetX = originX;
+      let jetY = originY;
+      let angle = -0.35; // radians
+
+      if (gameState === "FLYING" || gameState === "CRASHED") {
+        // Curve progress based on log of multiplier
+        const progress = Math.min(1.0, (Math.log(multiplier) / Math.log(30)) * 0.85 + 0.1);
+        const curveMaxX = width * 0.82;
+        const curveMinY = height * 0.18;
+
+        jetX = originX + (curveMaxX - originX) * Math.pow(progress, 0.75);
+        jetY = originY - (originY - curveMinY) * Math.pow(progress, 1.25);
+
+        // Calculate slope for aircraft angle
+        const dx = 1;
+        const dy = -1.25 * ((originY - curveMinY) / (curveMaxX - originX)) * Math.pow(progress, 0.25);
+        angle = Math.atan2(dy, dx);
+      }
+
+      // 5. Draw Flight Trajectory Curve & Altitude Area
+      if (gameState === "FLYING" || gameState === "CRASHED") {
+        // Area under curve
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+
+        // Cubic Bezier to Jet position
+        const cp1x = originX + (jetX - originX) * 0.45;
+        const cp1y = originY;
+        const cp2x = originX + (jetX - originX) * 0.75;
+        const cp2y = originY - (originY - jetY) * 0.4;
+
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, jetX, jetY);
+        ctx.lineTo(jetX, originY);
+        ctx.closePath();
+
+        const curveGrad = ctx.createLinearGradient(0, jetY, 0, originY);
+        if (gameState === "CRASHED") {
+          curveGrad.addColorStop(0, "rgba(225, 29, 72, 0.25)");
+          curveGrad.addColorStop(1, "rgba(225, 29, 72, 0.01)");
+        } else {
+          curveGrad.addColorStop(0, "rgba(245, 158, 11, 0.35)");
+          curveGrad.addColorStop(0.5, "rgba(234, 179, 8, 0.15)");
+          curveGrad.addColorStop(1, "rgba(245, 158, 11, 0.01)");
+        }
+        ctx.fillStyle = curveGrad;
+        ctx.fill();
+
+        // Glowing Stroke
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, jetX, jetY);
+        ctx.strokeStyle = gameState === "CRASHED" ? "#f43f5e" : "#fbbf24";
+        ctx.lineWidth = 3.5;
+        ctx.shadowColor = gameState === "CRASHED" ? "#e11d48" : "#f59e0b";
+        ctx.shadowBlur = 16;
+        ctx.stroke();
+        ctx.shadowBlur = 0; // Reset glow
+      }
+
+      // 6. Draw Exhaust Particles (Jet Trail)
+      if (gameState === "FLYING") {
+        // Spawn exhaust
+        const tailX = jetX - Math.cos(angle) * 32;
+        const tailY = jetY - Math.sin(angle) * 32;
+
+        for (let i = 0; i < 3; i++) {
+          exhaustParticles.push({
+            x: tailX + (Math.random() - 0.5) * 6,
+            y: tailY + (Math.random() - 0.5) * 6,
+            size: Math.random() * 5 + 3,
+            life: 1.0,
+            color: Math.random() > 0.4 ? "rgba(251, 191, 36," : "rgba(56, 189, 248,",
+          });
+        }
+      }
+
+      // Update & Draw Exhaust Particles
+      for (let i = exhaustParticles.length - 1; i >= 0; i--) {
+        const p = exhaustParticles[i];
+        p.life -= 0.04;
+        p.size *= 0.96;
+        p.x -= 2;
+
+        if (p.life <= 0) {
+          exhaustParticles.splice(i, 1);
+          continue;
+        }
+
+        ctx.fillStyle = `${p.color} ${p.life})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 7. Draw Cyber Supersonic Aircraft
+      if (gameState !== "CRASHED") {
+        ctx.save();
+        ctx.translate(jetX, jetY);
+        ctx.rotate(angle);
+
+        // Engine Thruster Glow Flare
+        if (gameState === "FLYING") {
+          const flameLength = 22 + Math.sin(time * 25) * 8 + Math.min(20, Math.log2(multiplier) * 4);
+          const flameGrad = ctx.createLinearGradient(-30, 0, -30 - flameLength, 0);
+          flameGrad.addColorStop(0, "#ffffff");
+          flameGrad.addColorStop(0.3, "#38bdf8");
+          flameGrad.addColorStop(0.7, "#f59e0b");
+          flameGrad.addColorStop(1, "transparent");
+
+          ctx.fillStyle = flameGrad;
+          ctx.beginPath();
+          ctx.moveTo(-24, -4);
+          ctx.lineTo(-24 - flameLength, 0);
+          ctx.lineTo(-24, 4);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Aircraft Main Body
+        ctx.shadowColor = "#38bdf8";
+        ctx.shadowBlur = 12;
+
+        // Wings
+        ctx.fillStyle = "#1e293b";
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(-20, -18);
+        ctx.lineTo(-12, -4);
+        ctx.lineTo(-12, 4);
+        ctx.lineTo(-20, 18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "#0ea5e9";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Fuselage
+        const bodyGrad = ctx.createLinearGradient(24, 0, -24, 0);
+        bodyGrad.addColorStop(0, "#f8fafc");
+        bodyGrad.addColorStop(0.4, "#cbd5e1");
+        bodyGrad.addColorStop(1, "#334155");
+
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.moveTo(28, 0);
+        ctx.lineTo(-22, -7);
+        ctx.lineTo(-26, 0);
+        ctx.lineTo(-22, 7);
+        ctx.closePath();
+        ctx.fill();
+
+        // Glowing Cockpit Glass
+        ctx.fillStyle = "#38bdf8";
+        ctx.beginPath();
+        ctx.ellipse(4, 0, 7, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      // 8. Draw Crash Sonic Boom Explosion
+      if (gameState === "CRASHED") {
+        if (shockwaveRadius === 0) {
+          // Initialize crash explosion particles once
+          for (let i = 0; i < 45; i++) {
+            const speed = Math.random() * 8 + 2;
+            const dir = Math.random() * Math.PI * 2;
+            crashParticles.push({
+              x: jetX,
+              y: jetY,
+              vx: Math.cos(dir) * speed,
+              vy: Math.sin(dir) * speed,
+              life: 1.0,
+              color: ["#f43f5e", "#fb923c", "#facc15", "#ffffff"][Math.floor(Math.random() * 4)],
+            });
+          }
+        }
+
+        shockwaveRadius += 4;
+
+        // Shockwave Ring
+        ctx.beginPath();
+        ctx.arc(jetX, jetY, shockwaveRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(244, 63, 94, ${Math.max(0, 1 - shockwaveRadius / 120)})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Particles
+        for (let i = crashParticles.length - 1; i >= 0; i--) {
+          const cp = crashParticles[i];
+          cp.x += cp.vx;
+          cp.y += cp.vy;
+          cp.life -= 0.025;
+
+          if (cp.life <= 0) {
+            crashParticles.splice(i, 1);
+            continue;
+          }
+
+          ctx.fillStyle = cp.color;
+          ctx.beginPath();
+          ctx.arc(cp.x, cp.y, Math.max(1, 4 * cp.life), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        shockwaveRadius = 0;
+        crashParticles.length = 0;
+      }
+
+      // 9. Countdown Ring Overlay
+      if (gameState === "COUNTDOWN") {
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+
+        // Circular progress indicator
+        const progress = countdown / 5.0; // 5s countdown
+        ctx.beginPath();
+        ctx.arc(0, 0, 52, -Math.PI / 2, -Math.PI / 2 + (1 - progress) * Math.PI * 2, false);
+        ctx.strokeStyle = "#f59e0b";
+        ctx.lineWidth = 4;
+        ctx.shadowColor = "#f59e0b";
+        ctx.shadowBlur = 14;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+      }
+
+      ctx.restore();
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [gameState, multiplier, countdown, crashMultiplier]);
+
+  return (
+    <div className="relative w-full h-full min-h-[380px] md:min-h-[460px] flex items-center justify-center overflow-hidden rounded-2xl bg-[#06080e]">
+      {/* HTML5 Canvas */}
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
+
+      {/* Dynamic Multiplier HUD Overlay */}
+      {gameState === "FLYING" && (
+        <div className="relative z-10 flex flex-col items-center justify-center pointer-events-none select-none">
+          <div className="text-6xl sm:text-7xl md:text-8xl font-black font-mono tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-amber-300 to-amber-500 drop-shadow-[0_10px_35px_rgba(245,158,11,0.4)] animate-pulse">
+            {multiplier.toFixed(2)}x
+          </div>
+          <span className="text-xs font-mono font-black text-amber-300 uppercase tracking-widest bg-amber-500/10 border border-amber-500/30 px-3 py-0.5 rounded-full mt-2">
+            CURRENT FLIGHT ALTITUDE
+          </span>
+        </div>
+      )}
+
+      {/* Crash Banner Overlay */}
+      {gameState === "CRASHED" && (
+        <div className="relative z-10 flex flex-col items-center justify-center text-center p-4 space-y-2 pointer-events-none animate-bounce">
+          <div className="text-xs font-mono font-bold text-rose-400 uppercase tracking-widest bg-rose-950/80 border border-rose-500/50 px-3 py-1 rounded-full">
+            FLEW AWAY
+          </div>
+          <div className="text-6xl sm:text-7xl font-black font-mono text-rose-500 drop-shadow-[0_10px_30px_rgba(225,29,72,0.6)]">
+            {(crashMultiplier || multiplier).toFixed(2)}x
+          </div>
+        </div>
+      )}
+
+      {/* Countdown Overlay */}
+      {gameState === "COUNTDOWN" && (
+        <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-3 pointer-events-none">
+          <div className="w-24 h-24 rounded-full bg-[#0d1322]/80 border border-amber-500/40 flex flex-col items-center justify-center shadow-xl shadow-amber-500/20 backdrop-blur-md">
+            <span className="text-2xl font-black font-mono text-amber-400">{countdown.toFixed(1)}s</span>
+            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">PREPARING</span>
+          </div>
+          <p className="text-xs font-bold text-gray-300 tracking-wide uppercase">
+            Next Flight Departure In Progress
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, use } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useParams, useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -19,9 +19,30 @@ import {
   ShieldCheck,
   RotateCcw,
   Zap,
+  TrendingUp,
+  ChevronRight,
+  RefreshCw,
+  Sliders,
+  CheckCircle2,
+  Dice5,
+  Layers,
+  Award,
+  CircleDot,
+  Radio,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sound } from "@/lib/soundFx";
+import { STUDIO_GAMES } from "@/lib/gamesCatalog";
+import { SkyRushGame } from "@/components/games/SkyRushGame";
+import { TigerTrailGame } from "@/components/games/TigerTrailGame";
+import { BombGridGame } from "@/components/games/BombGridGame";
+import { InfinityXGame } from "@/components/games/InfinityXGame";
+import { CricketBlastGame } from "@/components/games/CricketBlastGame";
+import { DropXGame } from "@/components/games/DropXGame";
+import { DiceXGame } from "@/components/games/DiceXGame";
+import { TreasureTowerGame } from "@/components/games/TreasureTowerGame";
+import { CardClimbGame } from "@/components/games/CardClimbGame";
+import { LuckyWheelGame } from "@/components/games/LuckyWheelGame";
 
 export default function PlaySessionPage() {
   const params = useParams();
@@ -30,7 +51,7 @@ export default function PlaySessionPage() {
 
   const sessionId = (params?.sessionId as string) || "sess_demo";
   const sessionToken = searchParams.get("token") || "";
-  const initialGame = searchParams.get("game") || "royal_coinflip";
+  const initialGame = searchParams.get("game") || "royal_tigertrail";
   const returnUrl = searchParams.get("returnUrl") || "http://localhost:3000";
 
   const [activeGame, setActiveGame] = useState<string>(initialGame);
@@ -39,717 +60,555 @@ export default function PlaySessionPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [lastWin, setLastWin] = useState<number | null>(null);
+  const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
+  const [roundHistory, setRoundHistory] = useState<number[]>([1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2]);
 
-  // 1. Coin Flip States
-  const [coinChoice, setCoinChoice] = useState<"heads" | "tails">("heads");
-  const [coinFlipping, setCoinFlipping] = useState(false);
-  const [coinOutcome, setCoinOutcome] = useState<"heads" | "tails" | null>(null);
+  // ==========================================
+  // 1. TIGER TRAIL (Step-Risk / Jungle Cashout)
+  // ==========================================
+  const [tigerStep, setTigerStep] = useState(0);
+  const [tigerPlaying, setTigerPlaying] = useState(false);
+  const [tigerCrashed, setTigerCrashed] = useState(false);
+  const [tigerDifficulty, setTigerDifficulty] = useState<"EASY" | "MEDIUM" | "HARD">("MEDIUM");
 
-  // 2. Andar Bahar States
-  const [andarBaharSide, setAndarBaharSide] = useState<"andar" | "bahar">("andar");
-  const [jokerCard, setJokerCard] = useState<any>({ display: "K♠", color: "black" });
-  const [andarCards, setAndarCards] = useState<any[]>([]);
-  const [baharCards, setBaharCards] = useState<any[]>([]);
-  const [winningSide, setWinningSide] = useState<string | null>(null);
-
-  // 3. Chicken Road Cross States
-  const [chickenLane, setChickenLane] = useState(0);
-  const [chickenPlaying, setChickenPlaying] = useState(false);
-  const [chickenCrashed, setChickenCrashed] = useState(false);
-  const [chickenMult, setChickenMult] = useState(1.0);
-
-  // 4. Aviator Crash States
-  const [aviatorFlying, setAviatorFlying] = useState(false);
-  const [aviatorMult, setAviatorMult] = useState(1.0);
-  const [aviatorCrashed, setAviatorCrashed] = useState(false);
-  const [aviatorCashedOut, setAviatorCashedOut] = useState(false);
-  const aviatorTimerRef = useRef<any>(null);
-
-  // 5. Mines Gold States
-  const [minesCount, setMinesCount] = useState(3);
-  const [minesPlaying, setMinesPlaying] = useState(false);
-  const [revealedMines, setRevealedMines] = useState<number[]>([]);
-  const [mineHitIndex, setMineHitIndex] = useState<number | null>(null);
-  const [minesMultiplier, setMinesMultiplier] = useState(1.0);
-
-  // 6. European Roulette States
-  const [rouletteBetType, setRouletteBetType] = useState("red");
-  const [rouletteSpinning, setRouletteSpinning] = useState(false);
-  const [rouletteNumber, setRouletteNumber] = useState<number | null>(null);
-
-  useEffect(() => {
-    sound.enabled = soundEnabled;
-  }, [soundEnabled]);
-
-  const fireConfetti = () => {
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ["#fbbf24", "#f59e0b", "#10b981", "#ffffff"],
-      });
-    } catch {}
+  const TIGER_STEPS = {
+    EASY: [1.15, 1.35, 1.6, 1.95, 2.45, 3.2, 4.3, 6.0, 9.0, 15.0],
+    MEDIUM: [1.25, 1.6, 2.1, 2.85, 4.0, 6.0, 9.5, 16.0, 30.0, 65.0],
+    HARD: [1.45, 2.2, 3.5, 5.8, 10.5, 20.0, 42.0, 95.0, 220.0, 500.0],
   };
 
-  // Generic Round Execution Engine
-  const executeStudioRound = async (extraPayload: any = {}) => {
-    if (isProcessing) return;
+  const startTigerTrail = () => {
+    if (playerBalance < betAmount) {
+      alert("Insufficient Balance");
+      return;
+    }
+    setPlayerBalance((prev) => Number((prev - betAmount).toFixed(2)));
+    setTigerStep(0);
+    setTigerPlaying(true);
+    setTigerCrashed(false);
+    setLastWin(null);
+    sound.playCardDeal();
+  };
+
+  const stepTigerForward = () => {
+    if (!tigerPlaying || isProcessing) return;
     setIsProcessing(true);
+
+    const stepsArray = TIGER_STEPS[tigerDifficulty];
+    const nextStepIndex = tigerStep + 1;
+
+    // Win chance calculation based on difficulty
+    const failRate = tigerDifficulty === "EASY" ? 0.15 : tigerDifficulty === "MEDIUM" ? 0.25 : 0.38;
+    const isSafe = Math.random() > failRate;
+
+    setTimeout(() => {
+      if (isSafe) {
+        setTigerStep(nextStepIndex);
+        sound.playChipBet();
+        if (nextStepIndex >= stepsArray.length) {
+          // Reached Final Step Jackpot
+          cashoutTigerTrail(stepsArray[stepsArray.length - 1]);
+        }
+      } else {
+        // Hit Trap
+        setTigerCrashed(true);
+        setTigerPlaying(false);
+        sound.playLoss();
+      }
+      setIsProcessing(false);
+    }, 280);
+  };
+
+  const cashoutTigerTrail = (customMult?: number) => {
+    if (!tigerPlaying && !customMult) return;
+    const mult = customMult || TIGER_STEPS[tigerDifficulty][tigerStep - 1] || 1.0;
+    const win = Number((betAmount * mult).toFixed(2));
+
+    setPlayerBalance((prev) => Number((prev + win).toFixed(2)));
+    setLastWin({ amount: win, multiplier: mult });
+    setTigerPlaying(false);
+    setRoundHistory((prev) => [mult, ...prev.slice(0, 9)]);
+    sound.playWin();
+    confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+  };
+
+  // ==========================================
+  // 2. BOMB GRID (5x5 Crystal / Mines Grid)
+  // ==========================================
+  const [mineCount, setMineCount] = useState(3);
+  const [bombGridPlaying, setBombGridPlaying] = useState(false);
+  const [revealedGrid, setRevealedGrid] = useState<number[]>([]);
+  const [mineLocations, setMineLocations] = useState<number[]>([]);
+  const [hitMineIndex, setHitMineIndex] = useState<number | null>(null);
+
+  const startBombGrid = () => {
+    if (playerBalance < betAmount) {
+      alert("Insufficient Balance");
+      return;
+    }
+    setPlayerBalance((prev) => Number((prev - betAmount).toFixed(2)));
+    setRevealedGrid([]);
+    setHitMineIndex(null);
     setLastWin(null);
 
-    try {
-      const res = await fetch("/api/studio/round", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          sessionToken,
-          gameUid: activeGame,
-          betAmount,
-          currentBalance: playerBalance,
-          ...extraPayload,
-        }),
-      });
+    // Randomize mine positions
+    const mines: number[] = [];
+    while (mines.length < mineCount) {
+      const idx = Math.floor(Math.random() * 25);
+      if (!mines.includes(idx)) mines.push(idx);
+    }
+    setMineLocations(mines);
+    setBombGridPlaying(true);
+    sound.playCardDeal();
+  };
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to settle round");
+  const getGridMultiplier = (gemsFound: number) => {
+    if (gemsFound === 0) return 1.0;
+    let mult = 1.0;
+    for (let i = 0; i < gemsFound; i++) {
+      mult *= (25 - i) / (25 - mineCount - i);
+    }
+    return Number((mult * 0.985).toFixed(2));
+  };
+
+  const clickTile = (index: number) => {
+    if (!bombGridPlaying || revealedGrid.includes(index) || isProcessing) return;
+
+    if (mineLocations.includes(index)) {
+      // Hit Bomb!
+      setHitMineIndex(index);
+      setRevealedGrid(Array.from({ length: 25 }, (_, i) => i));
+      setBombGridPlaying(false);
+      sound.playLoss();
+    } else {
+      // Found Crystal!
+      const newRevealed = [...revealedGrid, index];
+      setRevealedGrid(newRevealed);
+      sound.playCoinFlip();
+
+      const gemsCount = newRevealed.length;
+      if (gemsCount === 25 - mineCount) {
+        // Cleared all safe tiles!
+        const finalMult = getGridMultiplier(gemsCount);
+        cashoutBombGrid(finalMult);
       }
-
-      setPlayerBalance(data.newBalance);
-
-      if (data.isWin && data.winAmount > 0) {
-        sound.playWin();
-        fireConfetti();
-        setLastWin(data.winAmount);
-      } else if (!data.isWin && !extraPayload.chickenAction && !extraPayload.isMinesOngoing) {
-        sound.playLoss();
-      }
-
-      return data;
-    } catch (err: any) {
-      console.error("Game execution error:", err);
-    } finally {
-      setIsProcessing(false);
     }
   };
 
-  // 1. Play Coin Flip
-  const handlePlayCoinFlip = async () => {
-    if (isProcessing || playerBalance < betAmount) return;
-    setCoinFlipping(true);
+  const cashoutBombGrid = (customMult?: number) => {
+    if (!bombGridPlaying && !customMult) return;
+    const gemsFound = revealedGrid.length;
+    if (gemsFound === 0) return;
+
+    const mult = customMult || getGridMultiplier(gemsFound);
+    const win = Number((betAmount * mult).toFixed(2));
+
+    setPlayerBalance((prev) => Number((prev + win).toFixed(2)));
+    setLastWin({ amount: win, multiplier: mult });
+    setBombGridPlaying(false);
+    setRoundHistory((prev) => [mult, ...prev.slice(0, 9)]);
+    sound.playWin();
+    confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+  };
+
+  // ==========================================
+  // 3. INFINITY X (Limbo Target Multiplier)
+  // ==========================================
+  const [targetMultiplier, setTargetMultiplier] = useState(2.0);
+  const [infinityResult, setInfinityResult] = useState<number | null>(null);
+  const [infinityPlaying, setInfinityPlaying] = useState(false);
+
+  const winProbability = Number((98.8 / targetMultiplier).toFixed(2));
+
+  const playInfinityX = () => {
+    if (playerBalance < betAmount) {
+      alert("Insufficient Balance");
+      return;
+    }
+    setPlayerBalance((prev) => Number((prev - betAmount).toFixed(2)));
+    setInfinityPlaying(true);
+    setInfinityResult(null);
+    setLastWin(null);
+    sound.playCardDeal();
+
+    setTimeout(() => {
+      // Provably fair distribution curve
+      const r = Math.random();
+      const rawMult = Math.max(1.0, Number((0.99 / (1 - r)).toFixed(2)));
+      const finalResult = Math.min(rawMult, 10000.0);
+
+      setInfinityResult(finalResult);
+      setInfinityPlaying(false);
+
+      if (finalResult >= targetMultiplier) {
+        // Won!
+        const win = Number((betAmount * targetMultiplier).toFixed(2));
+        setPlayerBalance((prev) => Number((prev + win).toFixed(2)));
+        setLastWin({ amount: win, multiplier: targetMultiplier });
+        sound.playWin();
+        confetti({ particleCount: 50, spread: 50, origin: { y: 0.5 } });
+      } else {
+        sound.playLoss();
+      }
+      setRoundHistory((prev) => [finalResult, ...prev.slice(0, 9)]);
+    }, 450);
+  };
+
+  // ==========================================
+  // 4. SKY RUSH (Ascending Jet Multiplier)
+  // ==========================================
+  const [skyFlying, setSkyFlying] = useState(false);
+  const [skyMultiplier, setSkyMultiplier] = useState(1.0);
+  const [skyCrashed, setSkyCrashed] = useState(false);
+  const skyTimerRef = useRef<any>(null);
+
+  const startSkyRush = () => {
+    if (playerBalance < betAmount) {
+      alert("Insufficient Balance");
+      return;
+    }
+    setPlayerBalance((prev) => Number((prev - betAmount).toFixed(2)));
+    setSkyMultiplier(1.0);
+    setSkyCrashed(false);
+    setSkyFlying(true);
+    setLastWin(null);
+    sound.playCardDeal();
+
+    // Determine secret crash point
+    const r = Math.random();
+    const crashAt = Math.max(1.05, Number((0.97 / (1 - r)).toFixed(2)));
+
+    let current = 1.0;
+    const interval = setInterval(() => {
+      current += current < 2 ? 0.02 : current < 5 ? 0.05 : 0.15;
+      const formatted = Number(current.toFixed(2));
+
+      if (formatted >= crashAt) {
+        clearInterval(interval);
+        setSkyMultiplier(crashAt);
+        setSkyFlying(false);
+        setSkyCrashed(true);
+        sound.playLoss();
+        setRoundHistory((prev) => [crashAt, ...prev.slice(0, 9)]);
+      } else {
+        setSkyMultiplier(formatted);
+      }
+    }, 60);
+
+    skyTimerRef.current = interval;
+  };
+
+  const cashoutSkyRush = () => {
+    if (!skyFlying || skyCrashed) return;
+    clearInterval(skyTimerRef.current);
+    const win = Number((betAmount * skyMultiplier).toFixed(2));
+    setPlayerBalance((prev) => Number((prev + win).toFixed(2)));
+    setLastWin({ amount: win, multiplier: skyMultiplier });
+    setSkyFlying(false);
+    sound.playWin();
+    confetti({ particleCount: 70, spread: 80, origin: { y: 0.55 } });
+    setRoundHistory((prev) => [skyMultiplier, ...prev.slice(0, 9)]);
+  };
+
+  // ==========================================
+  // 5. DICE X (Over / Under Probability Table)
+  // ==========================================
+  const [diceTarget, setDiceTarget] = useState(50);
+  const [diceMode, setDiceMode] = useState<"OVER" | "UNDER">("OVER");
+  const [diceResult, setDiceResult] = useState<number | null>(null);
+  const [diceRolling, setDiceRolling] = useState(false);
+
+  const diceWinChance = diceMode === "OVER" ? 100 - diceTarget : diceTarget;
+  const diceMultiplier = Number((98.5 / diceWinChance).toFixed(2));
+
+  const rollDiceX = () => {
+    if (playerBalance < betAmount) {
+      alert("Insufficient Balance");
+      return;
+    }
+    setPlayerBalance((prev) => Number((prev - betAmount).toFixed(2)));
+    setDiceRolling(true);
+    setDiceResult(null);
+    setLastWin(null);
     sound.playCoinFlip();
 
-    setTimeout(async () => {
-      const data = await executeStudioRound({ coinChoice });
-      setCoinFlipping(false);
-      if (data?.coinResult) {
-        setCoinOutcome(data.coinResult);
-      }
-    }, 1200);
-  };
+    setTimeout(() => {
+      const roll = Math.floor(Math.random() * 100) + 1;
+      setDiceResult(roll);
+      setDiceRolling(false);
 
-  // 2. Play Andar Bahar
-  const handlePlayAndarBahar = async () => {
-    if (isProcessing || playerBalance < betAmount) return;
-    sound.playCardDeal();
-    setWinningSide(null);
-    setAndarCards([]);
-    setBaharCards([]);
-
-    const data = await executeStudioRound({ andarBaharSide });
-    if (data?.jokerCard) {
-      setJokerCard(data.jokerCard);
-      setAndarCards(data.dealtAndar || []);
-      setBaharCards(data.dealtBahar || []);
-      setWinningSide(data.winningSide);
-    }
-  };
-
-  // 3. Play Chicken Cross - Hop Step
-  const handleChickenStep = async () => {
-    if (chickenCrashed) return;
-    if (!chickenPlaying) {
-      if (playerBalance < betAmount) return;
-      setChickenPlaying(true);
-      setChickenLane(0);
-      setChickenCrashed(false);
-      setChickenMult(1.0);
-    }
-
-    sound.playGem();
-    const data = await executeStudioRound({
-      chickenAction: "step",
-      currentChickenLane: chickenLane,
-    });
-
-    if (data?.crashed) {
-      sound.playLoss();
-      setChickenCrashed(true);
-      setChickenPlaying(false);
-    } else if (data?.lane !== undefined) {
-      setChickenLane(data.lane);
-      setChickenMult(data.multiplier);
-    }
-  };
-
-  // Chicken Cross - Cashout
-  const handleChickenCashout = async () => {
-    if (!chickenPlaying || chickenCrashed) return;
-    const data = await executeStudioRound({
-      chickenAction: "cashout",
-      currentChickenLane: chickenLane,
-    });
-    setChickenPlaying(false);
-  };
-
-  // 4. Aviator Flight
-  const handleStartAviator = () => {
-    if (isProcessing || aviatorFlying || playerBalance < betAmount) return;
-    setAviatorFlying(true);
-    setAviatorCrashed(false);
-    setAviatorCashedOut(false);
-    setAviatorMult(1.0);
-
-    const crashAt = 1.2 + Math.random() * 5.0; // Random crash threshold
-    let cur = 1.0;
-
-    aviatorTimerRef.current = setInterval(() => {
-      cur += 0.05 + cur * 0.02;
-      setAviatorMult(Number(cur.toFixed(2)));
-
-      if (cur >= crashAt) {
-        clearInterval(aviatorTimerRef.current);
-        setAviatorFlying(false);
-        setAviatorCrashed(true);
+      const isWin = diceMode === "OVER" ? roll > diceTarget : roll < diceTarget;
+      if (isWin) {
+        const win = Number((betAmount * diceMultiplier).toFixed(2));
+        setPlayerBalance((prev) => Number((prev + win).toFixed(2)));
+        setLastWin({ amount: win, multiplier: diceMultiplier });
+        sound.playWin();
+        confetti({ particleCount: 50, spread: 50 });
+      } else {
         sound.playLoss();
-        executeStudioRound({ aviatorCashoutMult: 0 });
       }
-    }, 100);
+      setRoundHistory((prev) => [isWin ? diceMultiplier : 0, ...prev.slice(0, 9)]);
+    }, 400);
   };
 
-  const handleAviatorCashout = async () => {
-    if (!aviatorFlying || aviatorCrashed || aviatorCashedOut) return;
-    clearInterval(aviatorTimerRef.current);
-    setAviatorFlying(false);
-    setAviatorCashedOut(true);
-    await executeStudioRound({ aviatorCashoutMult: aviatorMult });
-  };
-
-  // 5. Mines - Start
-  const handleStartMines = () => {
-    if (playerBalance < betAmount) return;
-    setMinesPlaying(true);
-    setRevealedMines([]);
-    setMineHitIndex(null);
-    setMinesMultiplier(1.0);
-  };
-
-  const handlePickMineTile = async (index: number) => {
-    if (!minesPlaying || revealedMines.includes(index)) return;
-    sound.playGem();
-
-    const data = await executeStudioRound({
-      minesCount,
-      revealedMinesIndices: revealedMines,
-      mineTileIndex: index,
-      isMinesOngoing: true,
-    });
-
-    if (data?.hitBomb) {
-      sound.playLoss();
-      setMineHitIndex(index);
-      setMinesPlaying(false);
+  // Toggle Fullscreen
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
     } else {
-      setRevealedMines((prev) => [...prev, index]);
-      if (data?.multiplier) setMinesMultiplier(data.multiplier);
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
     }
   };
 
-  const handleMinesCashout = async () => {
-    if (!minesPlaying || revealedMines.length === 0) return;
-    await executeStudioRound({
-      minesCount,
-      revealedMinesIndices: revealedMines,
-      isMinesCashout: true,
-    });
-    setMinesPlaying(false);
-  };
-
-  // 6. European Roulette Spin
-  const handleSpinRoulette = async () => {
-    if (isProcessing || rouletteSpinning || playerBalance < betAmount) return;
-    setRouletteSpinning(true);
-
-    const tickInterval = setInterval(() => sound.playRouletteTick(), 120);
-
-    setTimeout(async () => {
-      clearInterval(tickInterval);
-      const data = await executeStudioRound({ rouletteBetType });
-      setRouletteSpinning(false);
-      if (data?.winningNumber !== undefined) {
-        setRouletteNumber(data.winningNumber);
-      }
-    }, 2000);
-  };
+  const currentGameMeta = STUDIO_GAMES.find((g) => g.game_uid === activeGame) || STUDIO_GAMES[0];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between selection:bg-amber-500 selection:text-black" suppressHydrationWarning>
-      {/* Studio Session Top Bar */}
-      <header className="h-14 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 flex items-center justify-between z-20">
+    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+      {/* Top Header Bar */}
+      <header className="h-14 bg-[#0a0d16] border-b border-slate-800/90 px-4 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => (window.location.href = returnUrl)}
-            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors flex items-center gap-1 text-xs"
+          <a
+            href={returnUrl}
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-gray-300 hover:text-white transition-colors"
+            title="Exit Game"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Exit Game</span>
-          </button>
+          </a>
 
-          <div className="h-4 w-[1px] bg-slate-700"></div>
-
-          {/* Game Switcher Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto py-1">
-            {[
-              { id: "royal_coinflip", label: "🪙 Coin Flip" },
-              { id: "royal_andarbahar", label: "🎴 Andar Bahar" },
-              { id: "royal_chickencross", label: "🐔 Chicken Cross" },
-              { id: "royal_aviator", label: "✈️ Aviator" },
-              { id: "royal_mines", label: "💣 Mines Gold" },
-              { id: "royal_roulette", label: "🎡 Roulette" },
-            ].map((g) => (
-              <button
-                key={g.id}
-                onClick={() => setActiveGame(g.id)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeGame === g.id
-                    ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
-                }`}
-              >
-                {g.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <h1 className="text-sm font-black text-white tracking-tight">{currentGameMeta.name}</h1>
+            <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
+              RTP {currentGameMeta.rtp}%
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Player Balance Counter */}
-          <div className="flex items-center gap-2 px-3 py-1 bg-slate-950 border border-slate-700 rounded-xl">
-            <Wallet className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs text-slate-400">Balance:</span>
-            <span className="text-sm font-bold text-emerald-400 font-mono">
-              ₹{playerBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+        {/* Center Round History Badges */}
+        <div className="hidden md:flex items-center gap-1.5 overflow-x-auto max-w-sm">
+          {roundHistory.map((mult, idx) => (
+            <span
+              key={idx}
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg ${
+                mult >= 5
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                  : mult >= 2
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  : "bg-slate-800 text-gray-400 border border-slate-700"
+              }`}
+            >
+              {mult.toFixed(2)}x
             </span>
+          ))}
+        </div>
+
+        {/* Right Controls */}
+        <div className="flex items-center gap-2.5">
+          {/* Balance */}
+          <div className="flex items-center gap-2 bg-[#06080e] border border-slate-800 px-3 py-1.5 rounded-xl">
+            <Wallet className="w-4 h-4 text-emerald-400" />
+            <div className="flex flex-col text-right">
+              <span className="text-[9px] uppercase font-bold text-gray-500 leading-none">Balance</span>
+              <span className="text-xs font-black text-emerald-400 leading-tight">
+                ₹{playerBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
 
+          {/* Sound Toggle */}
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition-colors"
-            title="Mute/Unmute SFX"
+            onClick={() => {
+              sound.enabled = !soundEnabled;
+              setSoundEnabled(!soundEnabled);
+            }}
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-gray-400 hover:text-white transition-colors"
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+            {soundEnabled ? <Volume2 className="w-4 h-4 text-amber-400" /> : <VolumeX className="w-4 h-4 text-gray-600" />}
+          </button>
+
+          {/* Fullscreen */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-gray-400 hover:text-white transition-colors"
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
       </header>
 
-      {/* Win Banner Notification */}
-      {lastWin !== null && (
-        <div className="bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-slate-950 py-1.5 px-4 text-center font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg animate-bounce">
-          <Trophy className="w-4 h-4" />
-          <span>YOU WON ₹{lastWin.toLocaleString()}!</span>
+      {/* Main Studio Arena */}
+      <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 flex flex-col md:flex-row gap-6 items-start justify-center">
+        {/* GAME PLAY CANVAS / STAGE (Left 65%) */}
+        <div className="flex-1 w-full bg-[#0b0f19] border border-slate-800/90 rounded-3xl p-6 min-h-[460px] flex flex-col items-center justify-center relative overflow-hidden shadow-2xl">
+          {/* Ambient Background Glow */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+          {/* GAME 1: TIGER TRAIL (60FPS Jungle River & Animated Tiger Stepper) */}
+          {activeGame === "royal_tigertrail" && (
+            <div className="w-full">
+              <TigerTrailGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 2: BOMB GRID (5x5 Laser Energy Cell Minefield) */}
+          {activeGame === "royal_bombgrid" && (
+            <div className="w-full">
+              <BombGridGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 3: INFINITY X (60FPS Neon Infinity Portal Limbo) */}
+          {activeGame === "royal_infinityx" && (
+            <div className="w-full">
+              <InfinityXGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 4: SKY RUSH (High-Speed Futuristic Crash) */}
+          {activeGame === "royal_skyrush" && (
+            <div className="w-full">
+              <SkyRushGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 5: CRICKET BLAST (60FPS Night Stadium Lofted Hit) */}
+          {activeGame === "royal_cricketblast" && (
+            <div className="w-full">
+              <CricketBlastGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 6: DROP X (60FPS Plinko Multi-Pin Physics Drop) */}
+          {activeGame === "royal_dropx" && (
+            <div className="w-full">
+              <DropXGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 7: DICE X (60FPS Digital Probability Table) */}
+          {activeGame === "royal_dicex" && (
+            <div className="w-full">
+              <DiceXGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 8: TREASURE TOWER (8-Floor Temple Risk Tower) */}
+          {activeGame === "royal_treasuretower" && (
+            <div className="w-full">
+              <TreasureTowerGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 9: CARD CLIMB (Monte Carlo Hi-Lo Luxury Felt Table) */}
+          {activeGame === "royal_cardclimb" && (
+            <div className="w-full">
+              <CardClimbGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
+
+          {/* GAME 10: LUCKY WHEEL X (60FPS Multiplier Spinning Wheel) */}
+          {activeGame === "royal_luckywheel" && (
+            <div className="w-full">
+              <LuckyWheelGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Main Game Stage */}
-      <main className="flex-1 flex flex-col justify-center items-center p-4 max-w-4xl mx-auto w-full">
-        {/* 1. COIN FLIP ROYALE */}
-        {activeGame === "royal_coinflip" && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-6">
-            <div className="text-center space-y-1">
-              <h2 className="text-xl font-bold text-amber-400 font-mono">🪙 COIN FLIP ROYALE</h2>
-              <p className="text-xs text-slate-400">Predict Heads or Tails for a 1.96x Instant Payout</p>
-            </div>
+        {/* CONTROLS & STUDIO SUITE SELECTOR (Right Sidebar) */}
+        <div className="w-full md:w-80 space-y-4 shrink-0">
 
-            {/* 3D Animated Coin */}
-            <div className="relative my-4 flex items-center justify-center">
-              <div
-                className={`w-36 h-36 rounded-full border-4 border-yellow-300 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-500 shadow-2xl shadow-yellow-500/30 flex items-center justify-center transition-transform duration-700 ${
-                  coinFlipping ? "animate-spin" : ""
-                }`}
-              >
-                <span className="text-4xl font-extrabold text-slate-950 font-serif">
-                  {coinOutcome === "tails" ? "T" : "H"}
-                </span>
-              </div>
-            </div>
+          {/* Studio 10-Game Switcher */}
+          <div className="bg-[#0b0f19] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-3">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+              Royal Studio Games Suite
+            </span>
 
-            {/* Selection Buttons */}
-            <div className="grid grid-cols-2 gap-4 w-full max-w-xs">
-              <button
-                onClick={() => setCoinChoice("heads")}
-                className={`py-3 rounded-2xl font-bold text-sm border transition-all ${
-                  coinChoice === "heads"
-                    ? "bg-amber-500/20 text-amber-400 border-amber-500 shadow-lg shadow-amber-500/20"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
-                }`}
-              >
-                HEADS (1.96x)
-              </button>
-              <button
-                onClick={() => setCoinChoice("tails")}
-                className={`py-3 rounded-2xl font-bold text-sm border transition-all ${
-                  coinChoice === "tails"
-                    ? "bg-amber-500/20 text-amber-400 border-amber-500 shadow-lg shadow-amber-500/20"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
-                }`}
-              >
-                TAILS (1.96x)
-              </button>
-            </div>
-
-            <button
-              onClick={handlePlayCoinFlip}
-              disabled={coinFlipping || playerBalance < betAmount}
-              className="w-full max-w-xs py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-amber-500/30 transition-all disabled:opacity-50"
-            >
-              {coinFlipping ? "Flipping..." : `FLIP COIN (₹${betAmount})`}
-            </button>
-          </div>
-        )}
-
-        {/* 2. ANDAR BAHAR LIVE */}
-        {activeGame === "royal_andarbahar" && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-6">
-            <div className="text-center space-y-1">
-              <h2 className="text-xl font-bold text-amber-400 font-mono">🎴 ANDAR BAHAR LIVE</h2>
-              <p className="text-xs text-slate-400">Match the Joker Card rank on Andar (1.90x) or Bahar (2.00x)</p>
-            </div>
-
-            {/* Joker Card */}
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Joker Card</span>
-              <div
-                className={`w-20 h-28 rounded-xl bg-white border-2 border-yellow-400 shadow-xl flex items-center justify-center font-bold text-2xl ${
-                  jokerCard.color === "red" ? "text-rose-600" : "text-slate-950"
-                }`}
-              >
-                {jokerCard.display}
-              </div>
-            </div>
-
-            {/* Andar / Bahar Dealing Felt */}
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <div
-                onClick={() => setAndarBaharSide("andar")}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  andarBaharSide === "andar"
-                    ? "bg-amber-500/10 border-amber-500"
-                    : "bg-slate-950/60 border-slate-800"
-                }`}
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-bold text-xs text-amber-400">ANDAR (1.90x)</span>
-                  {winningSide === "andar" && (
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">
-                      WINNER!
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-1 overflow-x-auto min-h-[56px] items-center">
-                  {andarCards.map((c, i) => (
-                    <div
-                      key={i}
-                      className={`w-10 h-14 bg-white rounded-lg border text-xs font-bold flex items-center justify-center shrink-0 shadow ${
-                        c.color === "red" ? "text-rose-600" : "text-slate-950"
-                      }`}
-                    >
-                      {c.display}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div
-                onClick={() => setAndarBaharSide("bahar")}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  andarBaharSide === "bahar"
-                    ? "bg-amber-500/10 border-amber-500"
-                    : "bg-slate-950/60 border-slate-800"
-                }`}
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-bold text-xs text-purple-400">BAHAR (2.00x)</span>
-                  {winningSide === "bahar" && (
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">
-                      WINNER!
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-1 overflow-x-auto min-h-[56px] items-center">
-                  {baharCards.map((c, i) => (
-                    <div
-                      key={i}
-                      className={`w-10 h-14 bg-white rounded-lg border text-xs font-bold flex items-center justify-center shrink-0 shadow ${
-                        c.color === "red" ? "text-rose-600" : "text-slate-950"
-                      }`}
-                    >
-                      {c.display}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={handlePlayAndarBahar}
-              disabled={isProcessing || playerBalance < betAmount}
-              className="w-full max-w-xs py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-amber-500/30 transition-all disabled:opacity-50"
-            >
-              {isProcessing ? "Dealing..." : `DEAL CARDS (₹${betAmount})`}
-            </button>
-          </div>
-        )}
-
-        {/* 3. CHICKEN ROAD CROSS */}
-        {activeGame === "royal_chickencross" && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-6">
-            <div className="text-center space-y-1">
-              <h2 className="text-xl font-bold text-amber-400 font-mono">🐔 CHICKEN ROAD CROSS</h2>
-              <p className="text-xs text-slate-400">Hop across highway lanes to multiply your payout up to 250x</p>
-            </div>
-
-            {/* Road Stepper Visualization */}
-            <div className="w-full flex justify-between items-center gap-1.5 bg-slate-950 p-4 rounded-2xl border border-slate-800 overflow-x-auto">
-              {[0, 1, 2, 3, 4, 5, 6].map((lane) => (
-                <div
-                  key={lane}
-                  className={`flex-1 min-w-[50px] py-4 rounded-xl flex flex-col items-center gap-1 border text-center transition-all ${
-                    chickenLane === lane && chickenPlaying
-                      ? "bg-amber-500/20 border-amber-500 scale-105"
-                      : chickenLane > lane
-                      ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
-                      : "bg-slate-900 border-slate-800 text-slate-600"
+            <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+              {STUDIO_GAMES.map((g) => (
+                <button
+                  key={g.game_uid}
+                  onClick={() => {
+                    setActiveGame(g.game_uid);
+                    setLastWin(null);
+                    sound.playCardDeal();
+                  }}
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all text-left ${
+                    activeGame === g.game_uid
+                      ? "bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/50 text-amber-300"
+                      : "bg-[#07090e] border border-slate-800/60 text-gray-400 hover:text-white"
                   }`}
                 >
-                  <span className="text-lg">{chickenLane === lane && chickenPlaying ? "🐔" : "🛣️"}</span>
-                  <span className="text-[10px] font-mono font-bold">
-                    {(1.0 + lane * 0.35).toFixed(2)}x
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {chickenCrashed && (
-              <div className="text-rose-400 font-bold text-xs flex items-center gap-1 animate-pulse">
-                <AlertCircle className="w-4 h-4" />
-                SPLATTED! Better luck next round.
-              </div>
-            )}
-
-            <div className="flex gap-4 w-full max-w-xs">
-              <button
-                onClick={handleChickenStep}
-                disabled={chickenCrashed}
-                className="flex-1 py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-amber-500/30 transition-all"
-              >
-                {chickenPlaying ? "HOP NEXT LANE" : `START CROSSING (₹${betAmount})`}
-              </button>
-
-              {chickenPlaying && chickenLane > 0 && (
-                <button
-                  onClick={handleChickenCashout}
-                  className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-emerald-500/30 transition-all"
-                >
-                  CASHOUT ₹{(betAmount * chickenMult).toFixed(0)}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 4. AVIATOR ROYALE CRASH */}
-        {activeGame === "royal_aviator" && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-6">
-            <div className="text-center space-y-1">
-              <h2 className="text-xl font-bold text-amber-400 font-mono">✈️ AVIATOR ROYALE CRASH</h2>
-              <p className="text-xs text-slate-400">Cashout before the lucky plane flies away!</p>
-            </div>
-
-            {/* Flight Display */}
-            <div className="w-full h-48 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden">
-              <div className="text-5xl font-black font-mono tracking-tight text-amber-400">
-                {aviatorMult.toFixed(2)}x
-              </div>
-
-              {aviatorFlying && (
-                <div className="text-xs text-emerald-400 font-mono mt-2 animate-pulse flex items-center gap-1">
-                  <Plane className="w-4 h-4 text-rose-500" />
-                  Plane in flight...
-                </div>
-              )}
-
-              {aviatorCrashed && (
-                <div className="text-sm text-rose-500 font-bold mt-2">FLEW AWAY!</div>
-              )}
-            </div>
-
-            <div className="w-full max-w-xs">
-              {aviatorFlying ? (
-                <button
-                  onClick={handleAviatorCashout}
-                  className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-slate-950 font-black text-base rounded-2xl shadow-xl shadow-emerald-500/30 transition-all"
-                >
-                  CASHOUT ₹{(betAmount * aviatorMult).toFixed(0)}
-                </button>
-              ) : (
-                <button
-                  onClick={handleStartAviator}
-                  disabled={playerBalance < betAmount}
-                  className="w-full py-4 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 text-white font-black text-base rounded-2xl shadow-xl shadow-rose-500/30 transition-all disabled:opacity-50"
-                >
-                  FLY PLANE (₹{betAmount})
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 5. MINES GOLD */}
-        {activeGame === "royal_mines" && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-6">
-            <div className="text-center space-y-1">
-              <h2 className="text-xl font-bold text-amber-400 font-mono">💣 MINES GOLD (5x5)</h2>
-              <p className="text-xs text-slate-400">Uncover sparkling gems, avoid hidden mines, cashout anytime!</p>
-            </div>
-
-            {/* 5x5 Grid */}
-            <div className="grid grid-cols-5 gap-2.5 bg-slate-950 p-4 rounded-2xl border border-slate-800">
-              {Array.from({ length: 25 }).map((_, idx) => {
-                const isRevealed = revealedMines.includes(idx);
-                const isHit = mineHitIndex === idx;
-
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => handlePickMineTile(idx)}
-                    disabled={!minesPlaying || isRevealed}
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg border transition-all ${
-                      isRevealed
-                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-inner"
-                        : isHit
-                        ? "bg-rose-500/30 border-rose-500 text-rose-500 animate-bounce"
-                        : "bg-slate-900 border-slate-800 hover:border-amber-500/50 hover:bg-slate-800"
-                    }`}
-                  >
-                    {isRevealed ? "💎" : isHit ? "💣" : ""}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex gap-4 w-full max-w-xs">
-              {minesPlaying ? (
-                <button
-                  onClick={handleMinesCashout}
-                  disabled={revealedMines.length === 0}
-                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-emerald-500/30 transition-all disabled:opacity-50"
-                >
-                  CASHOUT ₹{(betAmount * minesMultiplier).toFixed(0)} ({minesMultiplier.toFixed(2)}x)
-                </button>
-              ) : (
-                <button
-                  onClick={handleStartMines}
-                  disabled={playerBalance < betAmount}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-amber-500/30 transition-all disabled:opacity-50"
-                >
-                  START MINES ROUND (₹{betAmount})
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 6. EUROPEAN ROULETTE */}
-        {activeGame === "royal_roulette" && (
-          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-6">
-            <div className="text-center space-y-1">
-              <h2 className="text-xl font-bold text-amber-400 font-mono">🎡 EUROPEAN ROULETTE</h2>
-              <p className="text-xs text-slate-400">Single 0 European wheel with 36x straight-up payouts</p>
-            </div>
-
-            {/* Roulette Wheel Output */}
-            <div className="w-32 h-32 rounded-full border-4 border-yellow-400 bg-slate-950 flex flex-col items-center justify-center shadow-xl">
-              {rouletteSpinning ? (
-                <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <div className="text-3xl font-black font-mono text-white">
-                  {rouletteNumber !== null ? rouletteNumber : "?"}
-                </div>
-              )}
-            </div>
-
-            {/* Bet Placement Buttons */}
-            <div className="grid grid-cols-4 gap-2 w-full max-w-sm">
-              {[
-                { id: "red", label: "RED (2x)", color: "bg-rose-600 hover:bg-rose-500" },
-                { id: "black", label: "BLACK (2x)", color: "bg-slate-950 hover:bg-slate-900" },
-                { id: "even", label: "EVEN (2x)", color: "bg-slate-800 hover:bg-slate-700" },
-                { id: "odd", label: "ODD (2x)", color: "bg-slate-800 hover:bg-slate-700" },
-              ].map((b) => (
-                <button
-                  key={b.id}
-                  onClick={() => setRouletteBetType(b.id)}
-                  className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${b.color} ${
-                    rouletteBetType === b.id
-                      ? "border-yellow-400 shadow-lg scale-105"
-                      : "border-slate-700 text-slate-300"
-                  }`}
-                >
-                  {b.label}
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span>{g.name}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-gray-500">{g.category}</span>
                 </button>
               ))}
             </div>
-
-            <button
-              onClick={handleSpinRoulette}
-              disabled={rouletteSpinning || playerBalance < betAmount}
-              className="w-full max-w-xs py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-xl shadow-amber-500/30 transition-all disabled:opacity-50"
-            >
-              {rouletteSpinning ? "Spinning Wheel..." : `SPIN ROULETTE (₹${betAmount})`}
-            </button>
           </div>
-        )}
+        </div>
       </main>
-
-      {/* Bet Control Bottom Bar */}
-      <footer className="bg-slate-900/90 border-t border-slate-800 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 z-20">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bet Amount:</span>
-          <div className="flex items-center gap-1.5">
-            {[10, 50, 100, 500, 1000].map((amt) => (
-              <button
-                key={amt}
-                onClick={() => setBetAmount(amt)}
-                className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border transition-all ${
-                  betAmount === amt
-                    ? "bg-amber-500 text-slate-950 border-amber-400"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
-                }`}
-              >
-                ₹{amt}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>Provably Fair SHA-256 RNG Active</span>
-        </div>
-      </footer>
     </div>
   );
 }

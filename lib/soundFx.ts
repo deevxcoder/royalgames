@@ -59,6 +59,49 @@ class SoundFX {
     osc.stop(this.ctx.currentTime + 0.08);
   }
 
+  // Chip Bet Click
+  public playChipBet() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(1200, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.05);
+
+    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.05);
+  }
+
+  // Cricket Bat Crack / Hit Thwack Sound
+  public playBatCrack() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    // Fast high-pitch click + wooden resonant pop
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(1400, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(180, this.ctx.currentTime + 0.12);
+
+    gain.gain.setValueAtTime(0.45, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.12);
+  }
+
   // Step / Jump / Mine Gem reveal
   public playGem() {
     if (!this.enabled) return;
@@ -123,6 +166,69 @@ class SoundFX {
     gain.connect(this.ctx.destination);
     osc.start();
     osc.stop(this.ctx.currentTime + 0.35);
+  }
+
+  // Jet Engine Turbine Sound
+  private jetOsc: OscillatorNode | null = null;
+  private jetGain: GainNode | null = null;
+
+  public startJetEngine() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+    this.stopJetEngine();
+
+    this.jetOsc = this.ctx.createOscillator();
+    this.jetGain = this.ctx.createGain();
+    this.jetOsc.type = "sawtooth";
+    this.jetOsc.frequency.setValueAtTime(120, this.ctx.currentTime);
+
+    this.jetGain.gain.setValueAtTime(0.02, this.ctx.currentTime);
+    this.jetOsc.connect(this.jetGain);
+    this.jetGain.connect(this.ctx.destination);
+    this.jetOsc.start();
+  }
+
+  public updateJetPitch(multiplier: number) {
+    if (!this.ctx || !this.jetOsc || !this.jetGain) return;
+    const freq = Math.min(800, 120 + Math.log2(multiplier) * 150);
+    this.jetOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.05);
+    const volume = Math.min(0.08, 0.02 + Math.log2(multiplier) * 0.015);
+    this.jetGain.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.05);
+  }
+
+  public stopJetEngine() {
+    if (this.jetOsc) {
+      try {
+        this.jetOsc.stop();
+        this.jetOsc.disconnect();
+      } catch (e) {}
+      this.jetOsc = null;
+    }
+    this.jetGain = null;
+  }
+
+  // Sonic Boom Crash Sound
+  public playSonicBoom() {
+    this.stopJetEngine();
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    // Deep sub-bass boom
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.6);
+
+    gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.6);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.6);
   }
 
   // Roulette Wheel Spin Click
