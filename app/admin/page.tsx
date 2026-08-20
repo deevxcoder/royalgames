@@ -11,6 +11,7 @@ import {
   Copy,
   Check,
   Plus,
+  Minus,
   Trash2,
   RefreshCw,
   Eye,
@@ -27,6 +28,11 @@ import {
   LogOut,
   AlertCircle,
   Play,
+  Wallet,
+  CheckCircle2,
+  XCircle,
+  X,
+  Send,
 } from "lucide-react";
 
 export default function StudioAdminPortal() {
@@ -37,16 +43,32 @@ export default function StudioAdminPortal() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // Tabs: overview, clients, games, rounds, docs
-  const [activeTab, setActiveTab] = useState<"overview" | "clients" | "games" | "rounds" | "docs">("clients");
+  // Tabs: overview, clients, deposits, games, rounds, docs
+  const [activeTab, setActiveTab] = useState<"overview" | "clients" | "deposits" | "games" | "rounds" | "docs">("clients");
 
   // State
   const [clients, setClients] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [rounds, setRounds] = useState<any[]>([]);
+  const [deposits, setDeposits] = useState<any[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [revealedSecrets, setRevealedSecrets] = useState<{ [id: string]: boolean }>({});
+
+  // Balance Adjustment Modal State
+  const [adjustModal, setAdjustModal] = useState<{ open: boolean; client: any | null; type: "CREDIT" | "DEBIT" }>({
+    open: false,
+    client: null,
+    type: "CREDIT",
+  });
+  const [adjAmount, setAdjAmount] = useState("10000");
+  const [adjReason, setAdjReason] = useState("");
+  const [adjLoading, setAdjLoading] = useState(false);
+
+  // Reject deposit modal
+  const [rejectModalId, setRejectModalId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
 
   // Docs state
   const [docLang, setDocLang] = useState<"curl" | "node" | "php" | "python">("curl");
@@ -102,21 +124,24 @@ export default function StudioAdminPortal() {
     if (!adminUser) return;
     try {
       setLoadingClients(true);
-      const [clientsRes, statsRes, roundsRes] = await Promise.all([
+      const [clientsRes, statsRes, roundsRes, depRes] = await Promise.all([
         fetch("/api/admin/clients"),
         fetch("/api/admin/stats"),
         fetch("/api/admin/rounds"),
+        fetch("/api/admin/deposits"),
       ]);
 
-      const [cData, sData, rData] = await Promise.all([
+      const [cData, sData, rData, dData] = await Promise.all([
         clientsRes.json(),
         statsRes.json(),
         roundsRes.json(),
+        depRes.json(),
       ]);
 
       if (cData.clients) setClients(cData.clients);
       if (sData.clientsCount !== undefined) setStats(sData);
       if (rData.rounds) setRounds(rData.rounds);
+      if (dData.deposits) setDeposits(dData.deposits);
     } catch (e) {
       console.error(e);
     } finally {
@@ -231,6 +256,95 @@ export default function StudioAdminPortal() {
       }
     } catch (e: any) {
       alert(e.message);
+    }
+  };
+
+  // Deposit Approval
+  const handleApproveDeposit = async (depositId: string) => {
+    if (!confirm("Are you sure you want to approve this deposit and credit the client's GGR balance?")) return;
+    try {
+      const res = await fetch("/api/admin/deposits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          depositId,
+          action: "APPROVE",
+          adminNotes: "Verified and approved by Studio Super Admin",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(data.message);
+        fetchData();
+      } else {
+        alert(data.error || "Failed to approve deposit");
+      }
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  // Deposit Rejection
+  const handleRejectDeposit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectModalId) return;
+    setRejectLoading(true);
+    try {
+      const res = await fetch("/api/admin/deposits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          depositId: rejectModalId,
+          action: "REJECT",
+          adminNotes: rejectReason.trim() || "Payment not verified / invalid UTR",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRejectModalId(null);
+        setRejectReason("");
+        fetchData();
+      } else {
+        alert(data.error || "Failed to reject deposit");
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  // Client Balance Adjustment
+  const handleAdjustBalance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustModal.client) return;
+    setAdjLoading(true);
+    const numericAmount = Math.abs(Number(adjAmount)) * (adjustModal.type === "CREDIT" ? 1 : -1);
+
+    try {
+      const res = await fetch("/api/admin/operators", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ADJUST_BALANCE",
+          targetOperatorId: adjustModal.client.id,
+          amount: numericAmount,
+          reason: adjReason.trim() || `Manual Admin Balance ${adjustModal.type}`,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdjustModal({ open: false, client: null, type: "CREDIT" });
+        setAdjAmount("10000");
+        setAdjReason("");
+        fetchData();
+      } else {
+        alert(data.error || "Failed to adjust balance");
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setAdjLoading(false);
     }
   };
 
@@ -373,32 +487,42 @@ export default function StudioAdminPortal() {
           </div>
 
           {/* Tab Navigation */}
-          <nav className="hidden md:flex items-center gap-1 ml-8 bg-[#07090e] p-1 rounded-xl border border-slate-800">
-            {[
-              { id: "clients", label: "B2B Clients & API Keys", icon: Key },
-              { id: "overview", label: "Studio Overview", icon: Activity },
-              { id: "games", label: "Native Games Suite", icon: Gamepad2 },
-              { id: "rounds", label: "Round Audit Ledger", icon: Layers },
-              { id: "docs", label: "B2B API Integration Docs", icon: Globe },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    active
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
-                      : "text-gray-400 hover:text-white hover:bg-slate-800/60"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+          {(() => {
+            const pendingDepositsCount = deposits.filter((d: any) => d.status === "PENDING").length;
+            return (
+              <nav className="hidden md:flex items-center gap-1 ml-8 bg-[#07090e] p-1 rounded-xl border border-slate-800">
+                {[
+                  { id: "clients", label: "B2B Clients & API Keys", icon: Key },
+                  {
+                    id: "deposits",
+                    label: `Deposit Approvals${pendingDepositsCount > 0 ? ` (${pendingDepositsCount})` : ""}`,
+                    icon: Wallet,
+                  },
+                  { id: "overview", label: "Studio Overview", icon: Activity },
+                  { id: "games", label: "Native Games Suite", icon: Gamepad2 },
+                  { id: "rounds", label: "Round Audit Ledger", icon: Layers },
+                  { id: "docs", label: "B2B API Integration Docs", icon: Globe },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const active = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        active
+                          ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
+                          : "text-gray-400 hover:text-white hover:bg-slate-800/60"
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            );
+          })()}
         </div>
 
         <div className="flex items-center gap-3">
@@ -513,6 +637,47 @@ export default function StudioAdminPortal() {
                       </div>
                     </div>
 
+                    {/* Prepaid Balance & GGR Controls */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#080a10] p-3.5 rounded-xl border border-slate-800 text-xs">
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <span className="text-[10px] text-gray-400 uppercase font-bold block">Prepaid GGR Balance</span>
+                          <span className="text-sm font-bold text-emerald-400 font-mono">
+                            ₹{Number(client.balance || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="border-l border-slate-800 pl-4">
+                          <span className="text-[10px] text-gray-400 uppercase font-bold block">GGR Hold Share</span>
+                          <span className="text-xs font-bold text-purple-300 font-mono">{client.ggrRate || 10.0}% Hold</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setAdjustModal({ open: true, client, type: "CREDIT" });
+                            setAdjAmount("10000");
+                            setAdjReason("Manual Studio Balance Recharge");
+                          }}
+                          className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>+ Add Credit</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAdjustModal({ open: true, client, type: "DEBIT" });
+                            setAdjAmount("5000");
+                            setAdjReason("Manual Balance Adjustment");
+                          }}
+                          className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                        >
+                          <Minus className="w-3.5 h-3.5 stroke-[3]" />
+                          <span>- Deduct Balance</span>
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Active API Keys Table */}
                     <div className="space-y-2">
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
@@ -598,6 +763,110 @@ export default function StudioAdminPortal() {
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: DEPOSIT APPROVALS */}
+        {activeTab === "deposits" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-[#0e1320] via-[#0f172a] to-[#0e1320] border border-amber-500/30 rounded-3xl p-6 shadow-xl">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-emerald-400" />
+                  <span>Manual Deposit Approval Queue & GGR Credits</span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-1 max-w-2xl">
+                  Review client deposit requests, verify the UTR / TxHash reference against your bank/crypto wallet, and 1-click Approve to credit their GGR balance.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-6 shadow-lg space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Client Deposit Requests ({deposits.length})</span>
+                </h3>
+              </div>
+
+              {deposits.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 text-xs">
+                  No deposit requests submitted yet by operators.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400">
+                        <th className="pb-3">Client / Operator</th>
+                        <th className="pb-3">Amount</th>
+                        <th className="pb-3">Method</th>
+                        <th className="pb-3">UTR / TxHash Reference</th>
+                        <th className="pb-3">Status</th>
+                        <th className="pb-3">Requested At</th>
+                        <th className="pb-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {deposits.map((dep) => (
+                        <tr key={dep.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-3">
+                            <div className="font-bold text-white">{dep.operator?.companyName || "Unknown"}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">{dep.operator?.email}</div>
+                          </td>
+                          <td className="py-3 font-mono font-bold text-emerald-400 text-sm">
+                            ₹{Number(dep.amount).toLocaleString()}
+                          </td>
+                          <td className="py-3 font-semibold text-slate-300">{dep.paymentMethod}</td>
+                          <td className="py-3 font-mono text-slate-300 select-all font-semibold">
+                            {dep.transactionRef}
+                          </td>
+                          <td className="py-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                dep.status === "APPROVED"
+                                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                  : dep.status === "REJECTED"
+                                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                                  : "bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse"
+                              }`}
+                            >
+                              {dep.status}
+                            </span>
+                          </td>
+                          <td className="py-3 text-slate-500 text-[11px]">
+                            {new Date(dep.createdAt).toLocaleString()}
+                          </td>
+                          <td className="py-3 text-right">
+                            {dep.status === "PENDING" ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleApproveDeposit(dep.id)}
+                                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 shadow-md shadow-emerald-500/20 transition-all"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Approve & Credit</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setRejectModalId(dep.id);
+                                    setRejectReason("");
+                                  }}
+                                  className="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-bold transition-all"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-500">{dep.adminNotes || "Settled"}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
@@ -1662,6 +1931,129 @@ export async function POST(req: Request) {
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-xs font-extrabold shadow-lg shadow-amber-500/20"
                 >
                   {creatingClient ? "Generating Credentials..." : "Generate API Key & Register"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Balance Adjustment Modal */}
+      {adjustModal.open && adjustModal.client && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0c101c] border border-amber-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-amber-400" />
+                <span>
+                  {adjustModal.type === "CREDIT" ? "Credit GGR Balance" : "Deduct Balance"}: {adjustModal.client.companyName || adjustModal.client.name}
+                </span>
+              </h3>
+              <button
+                onClick={() => setAdjustModal({ open: false, client: null, type: "CREDIT" })}
+                className="text-gray-400 hover:text-white text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAdjustBalance} className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-slate-400 font-semibold block mb-1">
+                  Amount to {adjustModal.type === "CREDIT" ? "Credit (+)" : "Deduct (-)"} (INR)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="100"
+                  required
+                  value={adjAmount}
+                  onChange={(e) => setAdjAmount(e.target.value)}
+                  className="w-full bg-[#07090e] border border-slate-700 rounded-xl px-3.5 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 font-semibold block mb-1">Audit Ledger Reason / Reference</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Offline bank transfer recharge verified / Correction"
+                  value={adjReason}
+                  onChange={(e) => setAdjReason(e.target.value)}
+                  className="w-full bg-[#07090e] border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdjustModal({ open: false, client: null, type: "CREDIT" })}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-gray-300 hover:text-white font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={adjLoading}
+                  className={`px-5 py-2 rounded-xl font-black text-slate-950 shadow-lg ${
+                    adjustModal.type === "CREDIT"
+                      ? "bg-emerald-400 hover:bg-emerald-300"
+                      : "bg-rose-400 hover:bg-rose-300"
+                  }`}
+                >
+                  {adjLoading ? "Adjusting..." : `Confirm ${adjustModal.type === "CREDIT" ? "Credit" : "Deduction"}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Deposit Modal */}
+      {rejectModalId && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0c101c] border border-rose-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-rose-400 flex items-center gap-2">
+                <XCircle className="w-5 h-5" />
+                <span>Reject Deposit Request</span>
+              </h3>
+              <button
+                onClick={() => setRejectModalId(null)}
+                className="text-gray-400 hover:text-white text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectDeposit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-slate-400 font-semibold block mb-1">Reason for Rejection</label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="e.g. UTR reference not found in bank account / Mismatched transfer amount"
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  className="w-full bg-[#07090e] border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRejectModalId(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-gray-300 hover:text-white font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={rejectLoading}
+                  className="px-5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 font-black text-white shadow-lg shadow-rose-500/20"
+                >
+                  {rejectLoading ? "Rejecting..." : "Confirm Rejection"}
                 </button>
               </div>
             </form>

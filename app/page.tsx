@@ -22,18 +22,26 @@ export default function LandingPage() {
 
         <div className="flex items-center gap-3">
           <Link
-            href="/admin"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-xs font-bold text-amber-300 hover:text-amber-200 transition-colors"
+            href="/portal/login"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/40 text-xs font-bold text-amber-300 hover:text-amber-200 transition-colors"
           >
             <Key className="w-3.5 h-3.5" />
-            <span>Studio Admin & API Keys</span>
+            <span>Client Portal (API & GGR)</span>
           </Link>
 
           <Link
-            href="/play/demo_session?game=royal_tigertrail"
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all"
+            href="/admin"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-xs font-bold text-slate-300 hover:text-white transition-colors"
           >
-            <span>Play Games Demo</span>
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Studio Admin</span>
+          </Link>
+
+          <Link
+            href="/play/demo_session?game=royal_coinflip"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all"
+          >
+            <span>Play Demo</span>
             <ArrowRight className="w-3.5 h-3.5 stroke-[3]" />
           </Link>
         </div>

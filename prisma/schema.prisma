@@ -98,8 +98,42 @@ model Operator {
   rounds           GameRound[]
   transactions     OperatorTransaction[]
   webhookLogs      WebhookLog[]
+  deposits         OperatorDepositRequest[]
+  gameToggles      OperatorGameToggle[]
 
   @@map("operators")
+}
+
+model OperatorDepositRequest {
+  id             String   @id @default(cuid())
+  operatorId     String
+  operator       Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  amount         Float
+  currency       String   @default("INR")
+  paymentMethod  String   // UPI, USDT_TRC20, BANK_TRANSFER
+  transactionRef String   // UTR / TxHash
+  proofImage     String?
+  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNotes     String?
+  processedBy    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([operatorId])
+  @@map("operator_deposit_requests")
+}
+
+model OperatorGameToggle {
+  id         String   @id @default(cuid())
+  operatorId String
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  gameUid    String
+  isEnabled  Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([operatorId, gameUid])
+  @@index([operatorId])
+  @@map("operator_game_toggles")
 }
 
 model ApiToken {

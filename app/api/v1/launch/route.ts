@@ -43,6 +43,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check operator prepaid GGR balance
+    if (auth.client.balance <= 0) {
+      return NextResponse.json(
+        { status: 0, error: "Client prepaid GGR credit exhausted. Please recharge wallet in developer portal." },
+        { status: 402 }
+      );
+    }
+
+    // Check if operator disabled this game
+    const isGameDisabled = await db.operatorGameToggle.findFirst({
+      where: {
+        operatorId: auth.client.id,
+        gameUid: selectedGameUid,
+        isEnabled: false,
+      },
+    });
+
+    if (isGameDisabled) {
+      return NextResponse.json(
+        {
+          status: 0,
+          error: `Game '${selectedGameUid}' is currently disabled in your operator portal catalog.`,
+        },
+        { status: 403 }
+      );
+    }
+
     const rawSessionId = `sess_${crypto.randomUUID().replace(/-/g, "")}`;
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 4); // 4 hours
 

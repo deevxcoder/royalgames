@@ -35,3 +35,25 @@ export function verifySessionToken(token: string): any | null {
     return null;
   }
 }
+
+export async function getCurrentOperator() {
+  const { cookies } = await import("next/headers");
+  const { db } = await import("./db");
+  const cookieStore = await cookies();
+  const token = cookieStore.get("royal_operator_token")?.value;
+  if (!token) return null;
+
+  const decoded = verifyOperatorToken(token);
+  if (!decoded) return null;
+
+  const operator = await db.operator.findUnique({
+    where: { id: decoded.operatorId },
+    include: {
+      tokens: { orderBy: { createdAt: "desc" } },
+    },
+  });
+
+  return operator;
+}
+
+export const getOperatorFromCookie = getCurrentOperator;
