@@ -24,7 +24,7 @@ export async function GET() {
         gameUid: r.gameUid,
         gameName: r.gameName,
         clientName: r.operator?.companyName || "Default Studio Client",
-        userId: r.userId || r.memberAccount,
+        userId: r.userId || (r as any).memberAccount || "Player",
         betAmount: r.betAmount,
         winAmount: r.winAmount,
         multiplier: r.betAmount > 0 ? (r.winAmount / r.betAmount).toFixed(2) + "x" : "0x",
