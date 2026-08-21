@@ -13,9 +13,11 @@ import {
   Wallet,
   History,
   TrendingUp,
+  Percent,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sound } from "@/lib/soundFx";
+import { DiceXCanvas } from "./DiceXCanvas";
 
 interface DiceXGameProps {
   playerBalance: number;
@@ -82,20 +84,20 @@ export const DiceXGame: React.FC<DiceXGameProps> = ({
           onRecordRound({ bet: betAmount, win: 0, multiplier: 0 });
         }
       }
-    }, 380);
+    }, 420);
   };
 
   return (
-    <div className="w-full flex flex-col space-y-4">
+    <div className="w-full flex flex-col space-y-3">
       {/* Top History Strip */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
-          <History className="w-3 h-3 text-amber-400" /> Recent Rolls:
+          <History className="w-3.5 h-3.5 text-amber-400" /> Recent:
         </span>
         {diceHistory.map((num, idx) => (
           <span
             key={idx}
-            className={`text-xs font-mono font-black px-2.5 py-1 rounded-xl shrink-0 transition-all ${
+            className={`text-xs font-mono font-black px-2.5 py-0.5 rounded-xl shrink-0 transition-all ${
               num > 50
                 ? "bg-emerald-950/70 text-emerald-300 border border-emerald-500/50"
                 : "bg-rose-950/70 text-rose-300 border border-rose-500/50"
@@ -106,130 +108,122 @@ export const DiceXGame: React.FC<DiceXGameProps> = ({
         ))}
       </div>
 
-      {/* 60FPS Digital Dice Arena */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: Interactive Probability Table & Result Display (7 cols) */}
-        <div className="lg:col-span-7 bg-[#080d1a] border border-amber-500/20 rounded-3xl p-6 shadow-2xl flex flex-col items-center justify-center space-y-6 relative overflow-hidden">
-          <div className="text-center space-y-1">
-            <span className="text-xs text-amber-400 font-mono font-bold tracking-widest uppercase flex items-center justify-center gap-1.5">
-              <Dice5 className="w-4 h-4" /> DIGITAL PROBABILITY TABLE • 99.0% RTP
-            </span>
+      {/* 60FPS 3D Animated Dice Stage */}
+      <div className="w-full h-[270px] sm:h-[340px] md:h-[420px]">
+        <DiceXCanvas
+          isRolling={isRolling}
+          diceResult={diceResult}
+          targetNumber={targetNumber}
+          rollMode={rollMode}
+          isWin={isWin}
+        />
+      </div>
 
-            {/* Giant Outcome Display */}
-            <div className="text-7xl sm:text-8xl font-black font-mono tracking-tight drop-shadow-[0_10px_35px_rgba(245,158,11,0.3)]">
-              {isRolling ? (
-                <span className="text-amber-400 animate-pulse">{(Math.random() * 99 + 1).toFixed(0)}</span>
-              ) : diceResult !== null ? (
-                <span className={isWin ? "text-emerald-400 animate-bounce" : "text-rose-500"}>
-                  {diceResult}
-                </span>
-              ) : (
-                <span className="text-white">{targetNumber}</span>
-              )}
-            </div>
-
-            <div className="text-xs font-mono font-bold text-gray-400">
-              {isRolling
-                ? "GENERATING QUANTUM RANDOMNESS..."
-                : isWin === true
-                ? `WON! RESULT ${diceResult} MET CONDITION`
-                : isWin === false
-                ? `MISSED TARGET! RESULT WAS ${diceResult}`
-                : `ROLL ${rollMode} ${targetNumber} TO WIN`}
-            </div>
+      {/* Spacious, Ergonomic Dashboard Controls Panel */}
+      <div className="bg-[#080d1a] border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5 backdrop-blur-md">
+        {/* Row 1: Roll Mode Switcher & Stats Strip */}
+        <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+          {/* Roll Over / Roll Under Switcher */}
+          <div className="flex items-center gap-1 p-1 bg-[#040812] border border-slate-800 rounded-2xl flex-1 max-w-xs">
+            <button
+              onClick={() => {
+                setRollMode("OVER");
+                sound.playCardDeal();
+              }}
+              className={`flex-1 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                rollMode === "OVER"
+                  ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Roll Over 🔼
+            </button>
+            <button
+              onClick={() => {
+                setRollMode("UNDER");
+                sound.playCardDeal();
+              }}
+              className={`flex-1 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                rollMode === "UNDER"
+                  ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-md shadow-amber-500/20 scale-[1.02]"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Roll Under 🔽
+            </button>
           </div>
 
-          {/* Interactive 0–100 Probability Slider Bar */}
-          <div className="w-full max-w-md bg-[#050811] border border-slate-800 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setRollMode("OVER");
-                    sound.playCardDeal();
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl font-black transition-all ${
-                    rollMode === "OVER"
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/30"
-                      : "bg-slate-900 text-gray-400 border border-slate-800"
-                  }`}
-                >
-                  Roll Over
-                </button>
-                <button
-                  onClick={() => {
-                    setRollMode("UNDER");
-                    sound.playCardDeal();
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl font-black transition-all ${
-                    rollMode === "UNDER"
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/30"
-                      : "bg-slate-900 text-gray-400 border border-slate-800"
-                  }`}
-                >
-                  Roll Under
-                </button>
-              </div>
-
-              <span className="font-mono text-emerald-400 font-black text-sm">
-                {multiplier}x Payout
-              </span>
+          {/* Multiplier & Win Chance Badges */}
+          <div className="flex items-center gap-2 font-mono">
+            <div className="bg-[#040812] border border-slate-800 rounded-xl px-3 py-1 text-center">
+              <span className="text-[9px] uppercase font-bold text-gray-500 block">Win Chance</span>
+              <span className="text-xs font-black text-cyan-400">{winChance}%</span>
             </div>
-
-            {/* Slider Track with Dynamic Gradient */}
-            <div className="space-y-2">
-              <input
-                type="range"
-                min={5}
-                max={95}
-                value={targetNumber}
-                onChange={(e) => setTargetNumber(Number(e.target.value))}
-                className="w-full h-3 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-              />
-
-              <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 font-bold">
-                <span>0</span>
-                <span>25</span>
-                <span>50</span>
-                <span>75</span>
-                <span>100</span>
-              </div>
-            </div>
-
-            {/* Probability Stats Strip */}
-            <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-              <div className="bg-[#080d1a] border border-slate-800/80 rounded-xl p-2">
-                <span className="text-[9px] uppercase font-bold text-gray-500 block">Win Chance</span>
-                <span className="text-xs font-black font-mono text-cyan-400">{winChance}%</span>
-              </div>
-              <div className="bg-[#080d1a] border border-slate-800/80 rounded-xl p-2">
-                <span className="text-[9px] uppercase font-bold text-gray-500 block">Multiplier</span>
-                <span className="text-xs font-black font-mono text-amber-400">{multiplier}x</span>
-              </div>
-              <div className="bg-[#080d1a] border border-slate-800/80 rounded-xl p-2">
-                <span className="text-[9px] uppercase font-bold text-gray-500 block">Profit</span>
-                <span className="text-xs font-black font-mono text-emerald-400">₹{profitOnWin}</span>
-              </div>
+            <div className="bg-[#040812] border border-slate-800 rounded-xl px-3 py-1 text-center">
+              <span className="text-[9px] uppercase font-bold text-gray-500 block">Multiplier</span>
+              <span className="text-xs font-black text-amber-400">{multiplier}x</span>
             </div>
           </div>
         </div>
 
-        {/* Right: Bet Controls & Roll Button (5 cols) */}
-        <div className="lg:col-span-5 bg-[#080d1a] border border-slate-800/90 rounded-3xl p-5 shadow-2xl space-y-4">
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Bet Stake (INR)</span>
-            <div className="flex items-center gap-2 bg-[#050811] border border-slate-800 rounded-2xl px-3 py-2">
-              <span className="text-amber-400 font-bold text-sm">₹</span>
+        {/* Row 2: Interactive Probability Slider & Target Presets */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-bold text-gray-400 px-1">
+            <span className="uppercase tracking-wider">Target Threshold: {targetNumber}</span>
+            <span className="font-mono text-emerald-400">Profit: ₹{profitOnWin}</span>
+          </div>
+
+          <div className="p-2.5 bg-[#040812] border border-slate-800 rounded-2xl space-y-2">
+            <input
+              type="range"
+              min={5}
+              max={95}
+              value={targetNumber}
+              onChange={(e) => setTargetNumber(Number(e.target.value))}
+              className="w-full h-3 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+            />
+
+            {/* Quick Target Number Presets */}
+            <div className="grid grid-cols-4 gap-1.5 pt-1">
+              {[25, 50, 75, 90].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setTargetNumber(t);
+                    sound.playChipBet();
+                  }}
+                  className={`py-1 rounded-xl text-xs font-mono font-bold border transition-colors cursor-pointer ${
+                    targetNumber === t
+                      ? "bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20"
+                      : "bg-[#080d1a] border-slate-800 text-gray-400 hover:text-white"
+                  }`}
+                >
+                  Target {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 3: Bet Amount Input & Quick Chips */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-bold text-gray-400 px-1">
+            <span className="uppercase tracking-wider">Bet Amount (INR):</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+            <div className="sm:col-span-4 flex items-center gap-1.5 bg-[#040812] border border-slate-800 rounded-2xl px-3 py-2">
+              <span className="text-amber-400 font-black text-sm">₹</span>
               <input
                 type="number"
                 disabled={isRolling}
                 value={betAmount}
                 onChange={(e) => setBetAmount(Math.max(10, Number(e.target.value)))}
-                className="w-full bg-transparent text-white font-mono font-bold text-base focus:outline-none disabled:opacity-50"
+                className="w-full bg-transparent text-white font-mono font-black text-sm focus:outline-none disabled:opacity-50"
               />
             </div>
 
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="sm:col-span-8 grid grid-cols-4 gap-1.5">
               {[20, 50, 100, 500].map((val) => (
                 <button
                   key={val}
@@ -238,10 +232,10 @@ export const DiceXGame: React.FC<DiceXGameProps> = ({
                     setBetAmount(val);
                     sound.playChipBet();
                   }}
-                  className={`py-1.5 rounded-xl text-xs font-mono font-bold border transition-colors ${
+                  className={`py-2 rounded-xl text-xs font-mono font-bold border transition-colors cursor-pointer ${
                     betAmount === val
                       ? "bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20"
-                      : "bg-[#050811] border-slate-800 text-gray-400 hover:text-white disabled:opacity-40"
+                      : "bg-[#040812] border-slate-800 text-gray-400 hover:text-white disabled:opacity-40"
                   }`}
                 >
                   ₹{val}
@@ -249,51 +243,30 @@ export const DiceXGame: React.FC<DiceXGameProps> = ({
               ))}
             </div>
           </div>
-
-          {/* Quick Target Number Presets */}
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Quick Target Targets</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              {[25, 50, 75, 90].map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setTargetNumber(t);
-                    sound.playChipBet();
-                  }}
-                  className={`py-1.5 rounded-xl text-xs font-mono font-bold border transition-colors ${
-                    targetNumber === t
-                      ? "bg-amber-500 text-black border-amber-400"
-                      : "bg-[#050811] border-slate-800 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Primary Action Button: ROLL DICE */}
-          <button
-            onClick={rollDice}
-            disabled={isRolling}
-            className="w-full h-20 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-base shadow-xl shadow-amber-500/25 transition-all active:scale-95 flex flex-col items-center justify-center space-y-0.5"
-          >
-            <div className="flex items-center gap-1.5 text-xs uppercase tracking-widest font-extrabold text-black/90">
-              <Dice5 className="w-4 h-4" />
-              <span>{isRolling ? "ROLLING 3D DICE..." : `ROLL ${rollMode} ${targetNumber}`}</span>
-            </div>
-            <span className="text-xl font-mono font-black">₹{betAmount}</span>
-          </button>
-
-          {/* Win Celebration Banner */}
-          {lastWin && (
-            <div className="p-2.5 bg-emerald-950/60 border border-emerald-500/50 rounded-2xl text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 animate-bounce">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <span>Roll Win! Payout: ₹{lastWin.amount} ({lastWin.multiplier}x)!</span>
-            </div>
-          )}
         </div>
+
+        {/* Row 4: Grand Primary ROLL DICE Button */}
+        <button
+          onClick={rollDice}
+          disabled={isRolling}
+          className="w-full h-14 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-black font-black text-sm sm:text-base shadow-xl shadow-amber-500/25 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer border border-amber-300/40 disabled:opacity-50"
+        >
+          <Dice5 className="w-5 h-5 stroke-[2.5]" />
+          <span className="uppercase tracking-wider font-extrabold text-black/90">
+            {isRolling ? "ROLLING 3D DICE..." : `ROLL ${rollMode} ${targetNumber}`}
+          </span>
+          <span className="font-mono font-black text-base sm:text-lg">
+            (₹{betAmount} ➔ ₹{totalPayout})
+          </span>
+        </button>
+
+        {/* Win Celebration Banner */}
+        {lastWin && (
+          <div className="p-2.5 bg-emerald-950/70 border border-emerald-500/60 rounded-2xl text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 animate-bounce shadow-lg">
+            <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Roll Win! Won ₹{lastWin.amount.toLocaleString()} ({lastWin.multiplier}x)!</span>
+          </div>
+        )}
       </div>
     </div>
   );

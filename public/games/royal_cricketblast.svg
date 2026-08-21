@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cricketBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#051d14" />
+      <stop offset="50%" stop-color="#030f0b" />
+      <stop offset="100%" stop-color="#010503" />
+    </linearGradient>
+    <radialGradient id="fireBall" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="30%" stop-color="#fde047" />
+      <stop offset="70%" stop-color="#ea580c" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </radialGradient>
+    <filter id="cricketGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#cricketBg)" />
+
+  <!-- Stadium Floodlights Glow -->
+  <circle cx="100" cy="40" r="8" fill="#ffffff" opacity="0.9" filter="url(#cricketGlow)" />
+  <circle cx="500" cy="40" r="8" fill="#ffffff" opacity="0.9" filter="url(#cricketGlow)" />
+
+  <!-- Ascending Six Trajectory Arc -->
+  <path d="M 120 280 Q 280 60, 480 110" fill="none" stroke="#f59e0b" stroke-width="4" stroke-dasharray="6,4" filter="url(#cricketGlow)" />
+
+  <!-- Blazing Fireball Cricket Ball -->
+  <g transform="translate(480, 110)" filter="url(#cricketGlow)">
+    <!-- Fire Tail -->
+    <path d="M -15 8 L -60 -10 L -20 -8 Z" fill="#ea580c" opacity="0.8" />
+    <path d="M -10 5 L -45 -5 L -10 -5 Z" fill="#fbbf24" opacity="0.9" />
+    <!-- Ball Sphere -->
+    <circle cx="0" cy="0" r="18" fill="url(#fireBall)" />
+    <!-- Seam -->
+    <path d="M -12 -12 Q 0 0, 12 12" stroke="#ffffff" stroke-width="2" fill="none" />
+  </g>
+
+  <!-- Cricket Pitch & Batsman Silhouette on Left -->
+  <path d="M 60 280 L 200 280" stroke="#10b981" stroke-width="3" />
+  <g transform="translate(100, 240) scale(0.8)">
+    <!-- Wickets -->
+    <line x1="0" y1="0" x2="0" y2="40" stroke="#fbbf24" stroke-width="3" />
+    <line x1="8" y1="0" x2="8" y2="40" stroke="#fbbf24" stroke-width="3" />
+    <line x1="16" y1="0" x2="16" y2="40" stroke="#fbbf24" stroke-width="3" />
+    <!-- Bat Swung -->
+    <line x1="30" y1="20" x2="65" y2="-15" stroke="#b45309" stroke-width="6" stroke-linecap="round" />
+  </g>
+
+  <!-- Badges & Titles -->
+  <rect x="30" y="30" width="135" height="24" rx="12" fill="#064e3b" stroke="#10b981" stroke-width="1" opacity="0.9" />
+  <text x="97" y="46" fill="#6ee7b7" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle" letter-spacing="1">SPORTS CRASH</text>
+
+  <text x="30" y="220" fill="#ffffff" font-family="system-ui, sans-serif" font-size="32" font-weight="900" letter-spacing="1">CRICKET BLAST</text>
+  <text x="30" y="245" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" font-weight="600">Stadium Super Six Multiplier Hit</text>
+  
+  <rect x="470" y="30" width="100" height="28" rx="10" fill="#042f2e" stroke="#10b981" stroke-width="1" />
+  <text x="520" y="49" fill="#86efac" font-family="monospace" font-size="13" font-weight="900" text-anchor="middle">MAX 500x</text>
+</svg>

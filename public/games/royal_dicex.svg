@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="100%" height="100%">
+  <defs>
+    <linearGradient id="diceBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#180a0a" />
+      <stop offset="50%" stop-color="#0f0505" />
+      <stop offset="100%" stop-color="#050202" />
+    </linearGradient>
+    <linearGradient id="rubyTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fda4af" />
+      <stop offset="100%" stop-color="#e11d48" />
+    </linearGradient>
+    <filter id="diceGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#diceBg)" />
+
+  <!-- 3D Isometric Ruby Casino Dice -->
+  <g transform="translate(380, 160) scale(1.1)" filter="url(#diceGlow)">
+    <!-- Dice 1 (Ruby Red) -->
+    <g transform="translate(-30, -10)">
+      <!-- Top Face -->
+      <polygon points="0,-45 45,-20 0,5 -45,-20" fill="url(#rubyTop)" stroke="#ffe4e6" stroke-width="1.5" />
+      <circle cx="0" cy="-20" r="4" fill="#ffffff" />
+
+      <!-- Left Face -->
+      <polygon points="-45,-20 0,5 0,55 -45,30" fill="#be123c" stroke="#ffe4e6" stroke-width="1" />
+      <circle cx="-25" cy="0" r="3.5" fill="#ffffff" />
+      <circle cx="-25" cy="35" r="3.5" fill="#ffffff" />
+
+      <!-- Right Face -->
+      <polygon points="0,5 45,-20 45,30 0,55" fill="#9f1239" stroke="#ffe4e6" stroke-width="1" />
+      <circle cx="25" cy="0" r="3.5" fill="#ffffff" />
+      <circle cx="15" cy="20" r="3.5" fill="#ffffff" />
+      <circle cx="35" cy="20" r="3.5" fill="#ffffff" />
+      <circle cx="25" cy="40" r="3.5" fill="#ffffff" />
+    </g>
+
+    <!-- Dice 2 (Gold Accent) -->
+    <g transform="translate(55, 30) scale(0.85)">
+      <polygon points="0,-45 45,-20 0,5 -45,-20" fill="#fbbf24" stroke="#fef08a" stroke-width="1.5" />
+      <circle cx="-15" cy="-28" r="3.5" fill="#000000" />
+      <circle cx="15" cy="-12" r="3.5" fill="#000000" />
+      <polygon points="-45,-20 0,5 0,55 -45,30" fill="#d97706" />
+      <polygon points="0,5 45,-20 45,30 0,55" fill="#b45309" />
+    </g>
+  </g>
+
+  <!-- Badges & Titles -->
+  <rect x="30" y="30" width="135" height="24" rx="12" fill="#4c0519" stroke="#f43f5e" stroke-width="1" opacity="0.9" />
+  <text x="97" y="46" fill="#fda4af" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle" letter-spacing="1">PROBABILITY DICE</text>
+
+  <text x="30" y="240" fill="#ffffff" font-family="system-ui, sans-serif" font-size="32" font-weight="900" letter-spacing="1">DICE X</text>
+  <text x="30" y="265" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" font-weight="600">3D Isometric Probability Roll</text>
+  
+  <rect x="470" y="30" width="100" height="28" rx="10" fill="#4c0519" stroke="#fbbf24" stroke-width="1" />
+  <text x="520" y="49" fill="#fef08a" font-family="monospace" font-size="13" font-weight="900" text-anchor="middle">MAX 990x</text>
+</svg>

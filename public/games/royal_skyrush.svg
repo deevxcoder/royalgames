@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="100%" height="100%">
+  <defs>
+    <linearGradient id="skyBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="50%" stop-color="#07090e" />
+      <stop offset="100%" stop-color="#020306" />
+    </linearGradient>
+    <linearGradient id="jetGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="40%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="curveGlow" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.2" />
+      <stop offset="50%" stop-color="#f59e0b" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#fef08a" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="600" height="360" fill="url(#skyBg)" />
+
+  <!-- Stars & Warp Lines -->
+  <circle cx="80" cy="50" r="1.5" fill="#ffffff" opacity="0.6" />
+  <circle cx="160" cy="120" r="1" fill="#ffffff" opacity="0.4" />
+  <circle cx="450" cy="80" r="2" fill="#38bdf8" opacity="0.8" />
+  <circle cx="520" cy="200" r="1.5" fill="#f59e0b" opacity="0.5" />
+  <circle cx="280" cy="40" r="1" fill="#ffffff" opacity="0.5" />
+  <circle cx="50" cy="280" r="2" fill="#ffffff" opacity="0.3" />
+
+  <!-- Flight Grid & Trajectory Area Fill -->
+  <path d="M 60 300 Q 250 280, 420 120 L 420 300 Z" fill="url(#curveGlow)" opacity="0.15" />
+  <path d="M 60 300 Q 250 280, 420 120" fill="none" stroke="url(#curveGlow)" stroke-width="4" filter="url(#glow)" />
+
+  <!-- Supersonic Jet Plane -->
+  <g transform="translate(420, 120) rotate(-38)" filter="url(#glow)">
+    <!-- Jet Afterburner Plume -->
+    <path d="M -10 5 L -45 0 L -10 -5 Z" fill="#38bdf8" opacity="0.9" />
+    <path d="M -10 3 L -70 0 L -10 -3 Z" fill="#fbbf24" opacity="0.8" />
+    
+    <!-- Fuselage -->
+    <path d="M 35 0 L -15 -12 L -8 -3 L -22 -3 L -22 3 L -8 3 L -15 12 Z" fill="url(#jetGold)" stroke="#fef08a" stroke-width="1.5" />
+    <!-- Cockpit Canopy -->
+    <path d="M 12 -3 L 24 0 L 12 3 Z" fill="#0284c7" />
+  </g>
+
+  <!-- Floating Sparkles -->
+  <circle cx="430" cy="115" r="4" fill="#fde047" filter="url(#glow)" />
+  <circle cx="390" cy="150" r="3" fill="#38bdf8" filter="url(#glow)" />
+  <circle cx="340" cy="200" r="2.5" fill="#f59e0b" />
+
+  <!-- Game Banner Title & Meta -->
+  <rect x="30" y="30" width="105" height="24" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="1" opacity="0.9" />
+  <text x="82" y="46" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle" letter-spacing="1">CRASH</text>
+
+  <text x="30" y="270" fill="#ffffff" font-family="system-ui, sans-serif" font-size="32" font-weight="900" letter-spacing="1">SKY RUSH</text>
+  <text x="30" y="295" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" font-weight="600">Supersonic Flight Multiplier</text>
+  
+  <rect x="470" y="30" width="100" height="28" rx="10" fill="#1e1b4b" stroke="#f59e0b" stroke-width="1" />
+  <text x="520" y="49" fill="#fbbf24" font-family="monospace" font-size="13" font-weight="900" text-anchor="middle">MAX 1000x</text>
+</svg>

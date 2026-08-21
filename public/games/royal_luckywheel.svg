@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="100%" height="100%">
+  <defs>
+    <linearGradient id="wheelBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#160624" />
+      <stop offset="50%" stop-color="#0c0314" />
+      <stop offset="100%" stop-color="#05010a" />
+    </linearGradient>
+    <filter id="wheelGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#wheelBg)" />
+
+  <!-- 3D Spinning Wheel (Right Side) -->
+  <g transform="translate(420, 180) scale(1.15)" filter="url(#wheelGlow)">
+    <!-- Wheel Outer Ring -->
+    <circle cx="0" cy="0" r="90" fill="#0f172a" stroke="#f59e0b" stroke-width="6" />
+
+    <!-- 8 Multiplier Slices -->
+    <!-- Slice 1: 100x Crown Jackpot -->
+    <path d="M 0 0 L 0 -90 A 90 90 0 0 1 63.6 -63.6 Z" fill="#b91c1c" stroke="#fef08a" stroke-width="1.5" />
+    <text x="25" y="-45" font-size="11" font-weight="900" fill="#fde047" font-family="monospace">👑100x</text>
+
+    <!-- Slice 2: 0x Miss -->
+    <path d="M 0 0 L 63.6 -63.6 A 90 90 0 0 1 90 0 Z" fill="#3f0a14" />
+    <text x="45" y="-18" font-size="11" font-weight="bold" fill="#fda4af" font-family="monospace">0x</text>
+
+    <!-- Slice 3: 50x Fire -->
+    <path d="M 0 0 L 90 0 A 90 90 0 0 1 63.6 63.6 Z" fill="#ea580c" />
+    <text x="45" y="30" font-size="11" font-weight="bold" fill="#ffffff" font-family="monospace">50x</text>
+
+    <!-- Slice 4: 0x Miss -->
+    <path d="M 0 0 L 63.6 63.6 A 90 90 0 0 1 0 90 Z" fill="#3f0a14" />
+    <text x="18" y="55" font-size="11" font-weight="bold" fill="#fda4af" font-family="monospace">0x</text>
+
+    <!-- Slice 5: 25x Amber -->
+    <path d="M 0 0 L 0 90 A 90 90 0 0 1 -63.6 63.6 Z" fill="#d97706" />
+    <text x="-35" y="45" font-size="11" font-weight="bold" fill="#ffffff" font-family="monospace">25x</text>
+
+    <!-- Slice 6: 0x Miss -->
+    <path d="M 0 0 L -63.6 63.6 A 90 90 0 0 1 -90 0 Z" fill="#3f0a14" />
+    <text x="-55" y="15" font-size="11" font-weight="bold" fill="#fda4af" font-family="monospace">0x</text>
+
+    <!-- Slice 7: 10x Gold -->
+    <path d="M 0 0 L -90 0 A 90 90 0 0 1 -63.6 -63.6 Z" fill="#ca8a04" />
+    <text x="-55" y="-25" font-size="11" font-weight="bold" fill="#ffffff" font-family="monospace">10x</text>
+
+    <!-- Slice 8: 0x Miss -->
+    <path d="M 0 0 L -63.6 -63.6 A 90 90 0 0 1 0 -90 Z" fill="#3f0a14" />
+    <text x="-25" y="-45" font-size="11" font-weight="bold" fill="#fda4af" font-family="monospace">0x</text>
+
+    <!-- Center Golden Hub -->
+    <circle cx="0" cy="0" r="22" fill="#f59e0b" stroke="#fef08a" stroke-width="2" />
+    <text x="0" y="5" font-size="13" font-weight="900" fill="#000000" text-anchor="middle">👑</text>
+
+    <!-- Top Pointer Pin -->
+    <polygon points="0,-98 8,-85 -8,-85" fill="#fde047" stroke="#000000" stroke-width="1" />
+  </g>
+
+  <!-- Badges & Titles -->
+  <rect x="30" y="30" width="135" height="24" rx="12" fill="#3b0764" stroke="#a855f7" stroke-width="1" opacity="0.9" />
+  <text x="97" y="46" fill="#e9d5ff" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle" letter-spacing="1">MONEY WHEEL</text>
+
+  <text x="30" y="240" fill="#ffffff" font-family="system-ui, sans-serif" font-size="30" font-weight="900" letter-spacing="1">LUCKY WHEEL X</text>
+  <text x="30" y="265" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" font-weight="600">Grand 100x Crown Multiplier Wheel</text>
+  
+  <rect x="470" y="30" width="100" height="28" rx="10" fill="#4c0519" stroke="#f43f5e" stroke-width="1" />
+  <text x="520" y="49" fill="#fda4af" font-family="monospace" font-size="13" font-weight="900" text-anchor="middle">MAX 100x</text>
+</svg>

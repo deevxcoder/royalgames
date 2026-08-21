@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bombBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14061a" />
+      <stop offset="50%" stop-color="#0d0412" />
+      <stop offset="100%" stop-color="#040106" />
+    </linearGradient>
+    <linearGradient id="gemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a7f3d0" />
+      <stop offset="50%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="bombGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f87171" />
+      <stop offset="50%" stop-color="#dc2626" />
+      <stop offset="100%" stop-color="#7f1d1d" />
+    </linearGradient>
+    <filter id="bombGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#bombBg)" />
+
+  <!-- 5x5 Cyber Energy Cells (Isometric/Perspective Right side) -->
+  <g transform="translate(360, 110) scale(0.85)" opacity="0.95">
+    <!-- Grid Tiles -->
+    <rect x="0" y="0" width="45" height="45" rx="8" fill="#10b981" filter="url(#bombGlow)" />
+    <text x="22" y="30" font-size="20" text-anchor="middle">💎</text>
+
+    <rect x="55" y="0" width="45" height="45" rx="8" fill="#10b981" filter="url(#bombGlow)" />
+    <text x="77" y="30" font-size="20" text-anchor="middle">💎</text>
+
+    <rect x="110" y="0" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+    <rect x="165" y="0" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+
+    <rect x="0" y="55" width="45" height="45" rx="8" fill="#10b981" filter="url(#bombGlow)" />
+    <text x="22" y="85" font-size="20" text-anchor="middle">💎</text>
+
+    <rect x="55" y="55" width="45" height="45" rx="8" fill="#ef4444" filter="url(#bombGlow)" />
+    <text x="77" y="85" font-size="20" text-anchor="middle">💣</text>
+
+    <rect x="110" y="55" width="45" height="45" rx="8" fill="#10b981" filter="url(#bombGlow)" />
+    <text x="132" y="85" font-size="20" text-anchor="middle">💎</text>
+
+    <rect x="165" y="55" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+
+    <rect x="0" y="110" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+    <rect x="55" y="110" width="45" height="45" rx="8" fill="#10b981" filter="url(#bombGlow)" />
+    <text x="77" y="140" font-size="20" text-anchor="middle">💎</text>
+
+    <rect x="110" y="110" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+    <rect x="165" y="110" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+
+    <rect x="0" y="165" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+    <rect x="55" y="165" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+    <rect x="110" y="165" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+    <rect x="165" y="165" width="45" height="45" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+  </g>
+
+  <!-- Big Hero Crystal Gem -->
+  <g transform="translate(180, 140) scale(1.1)" filter="url(#bombGlow)">
+    <polygon points="0,-40 35,-15 22,35 -22,35 -35,-15" fill="url(#gemGrad)" stroke="#a7f3d0" stroke-width="2" />
+    <polygon points="0,-40 18,-15 10,25 -10,25 -18,-15" fill="#a7f3d0" opacity="0.6" />
+  </g>
+
+  <!-- Badges & Titles -->
+  <rect x="30" y="30" width="115" height="24" rx="12" fill="#3b0764" stroke="#a855f7" stroke-width="1" opacity="0.9" />
+  <text x="87" y="46" fill="#d8b4fe" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle" letter-spacing="1">MINES GRID</text>
+
+  <text x="30" y="270" fill="#ffffff" font-family="system-ui, sans-serif" font-size="32" font-weight="900" letter-spacing="1">BOMB GRID</text>
+  <text x="30" y="295" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" font-weight="600">5x5 Crystal Minefield Cashout</text>
+  
+  <rect x="470" y="30" width="100" height="28" rx="10" fill="#4c0519" stroke="#f43f5e" stroke-width="1" />
+  <text x="520" y="49" fill="#fda4af" font-family="monospace" font-size="13" font-weight="900" text-anchor="middle">MAX 500x</text>
+</svg>

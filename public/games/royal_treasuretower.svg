@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="100%" height="100%">
+  <defs>
+    <linearGradient id="towerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c1204" />
+      <stop offset="50%" stop-color="#0f0902" />
+      <stop offset="100%" stop-color="#050301" />
+    </linearGradient>
+    <linearGradient id="goldSlab" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="50%" stop-color="#ca8a04" />
+      <stop offset="100%" stop-color="#78350f" />
+    </linearGradient>
+    <filter id="towerGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="7" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#towerBg)" />
+
+  <!-- Ascending Egyptian Pyramid Tower (Right Side) -->
+  <g transform="translate(420, 80) scale(0.95)" filter="url(#towerGlow)">
+    <!-- Floor 8 Pinnacle -->
+    <rect x="-20" y="0" width="40" height="18" rx="4" fill="url(#goldSlab)" stroke="#fef08a" stroke-width="1.5" />
+    <text x="0" y="13" fill="#000000" font-size="10" font-weight="900" text-anchor="middle">👑</text>
+
+    <!-- Floor 7 -->
+    <rect x="-35" y="24" width="70" height="18" rx="4" fill="#1e293b" stroke="#ca8a04" stroke-width="1" />
+    <rect x="-48" y="48" width="96" height="18" rx="4" fill="#1e293b" stroke="#ca8a04" stroke-width="1" />
+    <rect x="-62" y="72" width="124" height="18" rx="4" fill="#1e293b" stroke="#ca8a04" stroke-width="1" />
+    <rect x="-76" y="96" width="152" height="18" rx="4" fill="#1e293b" stroke="#ca8a04" stroke-width="1" />
+    <rect x="-90" y="120" width="180" height="18" rx="4" fill="#1e293b" stroke="#ca8a04" stroke-width="1" />
+    <rect x="-105" y="144" width="210" height="18" rx="4" fill="#1e293b" stroke="#ca8a04" stroke-width="1" />
+    
+    <!-- Floor 1 Base Slab (Active) -->
+    <rect x="-120" y="168" width="240" height="22" rx="6" fill="#f59e0b" stroke="#fef08a" stroke-width="2" />
+    <text x="-60" y="184" font-size="14" text-anchor="middle">📦</text>
+    <text x="0" y="184" font-size="14" text-anchor="middle">💎</text>
+    <text x="60" y="184" font-size="14" text-anchor="middle">📦</text>
+  </g>
+
+  <!-- Badges & Titles -->
+  <rect x="30" y="30" width="135" height="24" rx="12" fill="#451a03" stroke="#f59e0b" stroke-width="1" opacity="0.9" />
+  <text x="97" y="46" fill="#fde68a" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle" letter-spacing="1">TEMPLE TOWER</text>
+
+  <text x="30" y="240" fill="#ffffff" font-family="system-ui, sans-serif" font-size="30" font-weight="900" letter-spacing="1">TREASURE TOWER</text>
+  <text x="30" y="265" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" font-weight="600">8-Floor Ancient Relic Ascent</text>
+  
+  <rect x="470" y="30" width="100" height="28" rx="10" fill="#451a03" stroke="#f59e0b" stroke-width="1" />
+  <text x="520" y="49" fill="#fef08a" font-family="monospace" font-size="13" font-weight="900" text-anchor="middle">MAX 500x</text>
+</svg>

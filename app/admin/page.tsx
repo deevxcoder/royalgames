@@ -77,7 +77,7 @@ export default function StudioAdminPortal() {
 
   // Interactive tester state
   const [testerPlayerId, setTesterPlayerId] = useState("player_demo_9921");
-  const [testerGameUid, setTesterGameUid] = useState("royal_coinflip");
+  const [testerGameUid, setTesterGameUid] = useState("royal_skyrush");
   const [testerBalance, setTesterBalance] = useState("1500");
   const [testerCurrency, setTesterCurrency] = useState("INR");
   const [testerLoading, setTesterLoading] = useState(false);
@@ -1307,12 +1307,16 @@ export async function POST(req: Request) {
 
 ## 6. Games Catalog (GET /api/v1/games)
 Returns active games suite:
-- \`royal_coinflip\`: Coin Flip Royale (RTP 98.0%, Max 100x)
-- \`royal_andarbahar\`: Andar Bahar Live (RTP 97.5%, Max 2.0x)
-- \`royal_chickencross\`: Chicken Road Cross (RTP 96.8%, Max 250x)
-- \`royal_aviator\`: Aviator Royale Crash (RTP 97.0%, Max 1000x)
-- \`royal_mines\`: Mines Gold (RTP 98.2%, Max 500x)
-- \`royal_roulette\`: European Roulette (RTP 97.3%, Max 36x)
+- \`royal_skyrush\`: Sky Rush (RTP 97.5%, Max 1000x)
+- \`royal_tigertrail\`: Tiger Trail (RTP 98.0%, Max 250x)
+- \`royal_bombgrid\`: Bomb Grid (RTP 98.5%, Max 500x)
+- \`royal_dropx\`: Drop X (RTP 98.2%, Max 1000x)
+- \`royal_cricketblast\`: Cricket Blast (RTP 97.6%, Max 500x)
+- \`royal_infinityx\`: Infinity X (RTP 98.8%, Max 10000x)
+- \`royal_treasuretower\`: Treasure Tower (RTP 98.0%, Max 500x)
+- \`royal_dicex\`: Dice X (RTP 99.0%, Max 100x)
+- \`royal_cardclimb\`: Card Climb (RTP 97.8%, Max 128x)
+- \`royal_luckywheel\`: Lucky Wheel X (RTP 97.0%, Max 50x)
 `;
                     copyText(fullMd, "full_doc_md");
                   }}

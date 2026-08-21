@@ -164,6 +164,33 @@ export default function WalletPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Instant Sandbox Demo Recharge Button */}
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/operator/demo-recharge", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ amount: 10000 }),
+                    });
+                    if (res.ok) {
+                      await fetchData();
+                      setSubmitMessage({
+                        type: "success",
+                        text: "🎉 Instant Sandbox Demo Credit added (+ ₹10,000 INR) successfully!",
+                      });
+                    }
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                className="w-full py-2.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all"
+              >
+                <Coins className="w-3.5 h-3.5 text-amber-400" />
+                <span>+ ₹10,000 Instant Sandbox Recharge</span>
+              </button>
             </div>
 
             {/* Right: Studio Admin Payment Accounts */}

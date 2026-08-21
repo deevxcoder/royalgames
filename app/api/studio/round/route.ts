@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const {
       sessionId,
       sessionToken,
-      gameUid = "royal_coinflip",
+      gameUid = "royal_skyrush",
       betAmount = 50,
       currentBalance = 1000,
       // Game-specific parameters

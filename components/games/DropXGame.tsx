@@ -14,6 +14,7 @@ import {
   Play,
   Layers,
   History,
+  CircleDot,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sound } from "@/lib/soundFx";
@@ -27,7 +28,6 @@ interface DropXGameProps {
 
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
-// Plinko Multipliers Lookup by Rows and Risk
 const PLINKO_PAYTABLES: Record<number, Record<RiskLevel, number[]>> = {
   8: {
     LOW: [5.6, 2.1, 1.1, 1.0, 0.5, 1.0, 1.1, 2.1, 5.6],
@@ -70,7 +70,7 @@ export const DropXGame: React.FC<DropXGameProps> = ({
 
   const activeMultipliers = PLINKO_PAYTABLES[rows]?.[risk] || PLINKO_PAYTABLES[10].MEDIUM;
 
-  // 1. Drop a Ball
+  // 1. Drop a Ball with automatic center alignment
   const dropBall = () => {
     if (playerBalance < betAmount) {
       alert("Insufficient Balance");
@@ -80,17 +80,17 @@ export const DropXGame: React.FC<DropXGameProps> = ({
     onUpdateBalance(playerBalance - betAmount);
     sound.playChipBet();
 
-    // Spawn new ball at top center with slight random offset
     const newBall: PlinkoBall = {
       id: `ball_${Date.now()}_${Math.random()}`,
-      x: 350 + (Math.random() - 0.5) * 12,
-      y: 25,
-      vx: (Math.random() - 0.5) * 1.5,
-      vy: 0,
-      radius: rows >= 14 ? 5 : 6,
+      x: 0,
+      y: 0,
+      vx: (Math.random() - 0.5) * 0.8,
+      vy: 0.8,
+      radius: rows >= 14 ? 4 : 5.5,
       color: risk === "HIGH" ? "#f43f5e" : risk === "MEDIUM" ? "#fbbf24" : "#38bdf8",
       betAmount,
       isLanded: false,
+      initialized: false,
     };
 
     setActiveBalls((prev) => [...prev, newBall]);
@@ -106,7 +106,7 @@ export const DropXGame: React.FC<DropXGameProps> = ({
     for (let i = 0; i < count; i++) {
       setTimeout(() => {
         dropBall();
-      }, i * 180);
+      }, i * 160);
     }
   };
 
@@ -137,16 +137,16 @@ export const DropXGame: React.FC<DropXGameProps> = ({
   );
 
   return (
-    <div className="w-full flex flex-col space-y-4">
+    <div className="w-full flex flex-col space-y-3">
       {/* Top Drop History Strip */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
-          <History className="w-3 h-3 text-cyan-400" /> Recent Landings:
+          <History className="w-3.5 h-3.5 text-cyan-400" /> Recent:
         </span>
         {dropHistory.map((mult, idx) => (
           <span
             key={idx}
-            className={`text-xs font-mono font-black px-2.5 py-1 rounded-xl shrink-0 transition-all ${
+            className={`text-xs font-mono font-black px-2.5 py-0.5 rounded-xl shrink-0 transition-all ${
               mult >= 20
                 ? "bg-rose-950/70 text-rose-300 border border-rose-500/50 shadow-md shadow-rose-500/20"
                 : mult >= 3
@@ -161,88 +161,95 @@ export const DropXGame: React.FC<DropXGameProps> = ({
         ))}
       </div>
 
-      {/* 60FPS Plinko Physics Arena & Matrix */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: 60FPS Canvas View (7 cols) */}
-        <div className="lg:col-span-7 h-[440px] sm:h-[480px] md:h-[520px]">
-          <DropXCanvas
-            rows={rows}
-            risk={risk}
-            multipliers={activeMultipliers}
-            balls={activeBalls}
-            onBallLanded={handleBallLanded}
-          />
+      {/* 60FPS Full-View Plinko Physics Arena */}
+      <div className="w-full h-[310px] sm:h-[380px] md:h-[450px]">
+        <DropXCanvas
+          rows={rows}
+          risk={risk}
+          multipliers={activeMultipliers}
+          balls={activeBalls}
+          onBallLanded={handleBallLanded}
+        />
+      </div>
+
+      {/* Spacious, Ergonomic Dashboard Panel (No Cramping) */}
+      <div className="bg-[#080d18] border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5 backdrop-blur-md">
+        {/* 1. Risk Volatility Selector */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-bold text-gray-400 px-1">
+            <span className="uppercase tracking-wider">Risk Volatility:</span>
+            <span className="font-mono text-cyan-400">Max Multiplier: {activeMultipliers[0]}x</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#040812] border border-slate-800/90 rounded-2xl">
+            {(["LOW", "MEDIUM", "HIGH"] as RiskLevel[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => {
+                  setRisk(r);
+                  sound.playCardDeal();
+                }}
+                className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  risk === r
+                    ? r === "HIGH"
+                      ? "bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/30 scale-[1.02]"
+                      : r === "MEDIUM"
+                      ? "bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-lg shadow-amber-500/30 scale-[1.02]"
+                      : "bg-gradient-to-r from-cyan-400 to-cyan-500 text-black shadow-lg shadow-cyan-500/30 scale-[1.02]"
+                    : "text-gray-400 hover:text-white hover:bg-slate-900"
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Right: Plinko Controls & Quick Drop Buttons (5 cols) */}
-        <div className="lg:col-span-5 bg-[#080d18] border border-cyan-500/20 rounded-3xl p-5 shadow-2xl space-y-4">
-          {/* Risk Level Selector */}
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-gray-300 uppercase tracking-wider block">Risk Volatility</span>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(["LOW", "MEDIUM", "HIGH"] as RiskLevel[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => {
-                    setRisk(r);
-                    sound.playCardDeal();
-                  }}
-                  className={`py-2 rounded-xl text-xs font-black border transition-all ${
-                    risk === r
-                      ? r === "HIGH"
-                        ? "bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-500/30"
-                        : r === "MEDIUM"
-                        ? "bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/30"
-                        : "bg-cyan-500 text-black border-cyan-400 shadow-md shadow-cyan-500/30"
-                      : "bg-[#040812] border-slate-800 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
+        {/* 2. Pyramid Pin Rows Selector */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-bold text-gray-400 px-1">
+            <span className="uppercase tracking-wider">Pyramid Rows:</span>
+            <span className="font-mono text-cyan-400">{rows} Rows Matrix</span>
           </div>
 
-          {/* Pyramid Pin Rows Selector */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-gray-300 uppercase tracking-wider">Pyramid Rows</span>
-              <span className="font-mono font-black text-cyan-400">{rows} Rows</span>
-            </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {[8, 10, 12, 14, 16].map((num) => (
-                <button
-                  key={num}
-                  onClick={() => {
-                    setRows(num);
-                    sound.playCardDeal();
-                  }}
-                  className={`py-1.5 rounded-xl text-xs font-mono font-bold border transition-colors ${
-                    rows === num
-                      ? "bg-cyan-500 text-black border-cyan-400 shadow-md shadow-cyan-500/20"
-                      : "bg-[#040812] border-slate-800 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-5 gap-1.5 p-1 bg-[#040812] border border-slate-800/90 rounded-2xl">
+            {[8, 10, 12, 14, 16].map((num) => (
+              <button
+                key={num}
+                onClick={() => {
+                  setRows(num);
+                  sound.playCardDeal();
+                }}
+                className={`py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                  rows === num
+                    ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/30 font-black scale-[1.02]"
+                    : "text-gray-400 hover:text-white hover:bg-slate-900"
+                }`}
+              >
+                {num} Rows
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 3. Bet Amount Input & Quick Chips */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-bold text-gray-400 px-1">
+            <span className="uppercase tracking-wider">Bet Amount (INR):</span>
           </div>
 
-          {/* Bet Amount Input & Chips */}
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Bet Amount (INR)</span>
-            <div className="flex items-center gap-2 bg-[#040812] border border-slate-800 rounded-2xl px-3 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+            <div className="sm:col-span-4 flex items-center gap-1.5 bg-[#040812] border border-slate-800 rounded-2xl px-3 py-2">
               <span className="text-cyan-400 font-bold text-sm">₹</span>
               <input
                 type="number"
                 value={betAmount}
                 onChange={(e) => setBetAmount(Math.max(10, Number(e.target.value)))}
-                className="w-full bg-transparent text-white font-mono font-bold text-base focus:outline-none"
+                className="w-full bg-transparent text-white font-mono font-bold text-sm focus:outline-none"
               />
             </div>
 
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="sm:col-span-8 grid grid-cols-4 gap-1.5">
               {[20, 50, 100, 500].map((val) => (
                 <button
                   key={val}
@@ -250,9 +257,9 @@ export const DropXGame: React.FC<DropXGameProps> = ({
                     setBetAmount(val);
                     sound.playChipBet();
                   }}
-                  className={`py-1.5 rounded-xl text-xs font-mono font-bold border transition-colors ${
+                  className={`py-2 rounded-xl text-xs font-mono font-bold border transition-colors cursor-pointer ${
                     betAmount === val
-                      ? "bg-cyan-500 text-black border-cyan-400"
+                      ? "bg-cyan-500 text-black border-cyan-400 shadow-md shadow-cyan-500/20"
                       : "bg-[#040812] border-slate-800 text-gray-400 hover:text-white"
                   }`}
                 >
@@ -261,43 +268,46 @@ export const DropXGame: React.FC<DropXGameProps> = ({
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Primary Action Button: DROP BALL */}
+        {/* 4. Grand Primary DROP BALL Button + Multi-Drops */}
+        <div className="grid grid-cols-12 gap-2 pt-1">
           <button
             onClick={dropBall}
-            className="w-full h-20 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-black font-black text-base shadow-xl shadow-cyan-500/25 transition-all active:scale-95 flex flex-col items-center justify-center space-y-0.5"
+            className="col-span-8 h-14 rounded-2xl bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-black font-black text-sm shadow-xl shadow-cyan-500/25 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer border border-cyan-300/40"
           >
-            <span className="text-xs uppercase tracking-widest font-extrabold text-black/90">DROP PLINKO BALL</span>
-            <span className="text-xl font-mono font-black">₹{betAmount}</span>
+            <CircleDot className="w-5 h-5 stroke-[2.5]" />
+            <span className="uppercase tracking-wider font-extrabold text-black/90">DROP BALL</span>
+            <span className="font-mono font-black text-base">₹{betAmount}</span>
           </button>
 
-          {/* Multi-Ball Quick Burst Buttons */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              onClick={() => dropMultipleBalls(5)}
-              className="py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-xs font-bold text-cyan-300 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              <span>Drop 5 Balls</span>
-            </button>
+          {/* Quick Multi-Drops */}
+          <button
+            onClick={() => dropMultipleBalls(5)}
+            className="col-span-2 h-14 rounded-2xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-cyan-300 text-xs font-black transition-all active:scale-95 flex flex-col items-center justify-center cursor-pointer shadow-md"
+            title="Drop 5 Balls in sequence"
+          >
+            <Zap className="w-4 h-4 text-cyan-400" />
+            <span>x5</span>
+          </button>
 
-            <button
-              onClick={() => dropMultipleBalls(10)}
-              className="py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-xs font-bold text-amber-300 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Flame className="w-3.5 h-3.5" />
-              <span>Drop 10 Balls</span>
-            </button>
-          </div>
-
-          {/* Win Celebration Banner */}
-          {lastWin && (
-            <div className="p-2.5 bg-emerald-950/60 border border-emerald-500/50 rounded-2xl text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 animate-bounce">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <span>Landed {lastWin.multiplier}x! Payout: ₹{lastWin.amount}!</span>
-            </div>
-          )}
+          <button
+            onClick={() => dropMultipleBalls(10)}
+            className="col-span-2 h-14 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-amber-300 text-xs font-black transition-all active:scale-95 flex flex-col items-center justify-center cursor-pointer shadow-md"
+            title="Drop 10 Balls in sequence"
+          >
+            <Flame className="w-4 h-4 text-amber-400" />
+            <span>x10</span>
+          </button>
         </div>
+
+        {/* Win Celebration Banner */}
+        {lastWin && (
+          <div className="p-2.5 bg-emerald-950/70 border border-emerald-500/60 rounded-2xl text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 animate-bounce shadow-lg">
+            <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Landed {lastWin.multiplier}x! Won ₹{lastWin.amount.toLocaleString()}!</span>
+          </div>
+        )}
       </div>
     </div>
   );

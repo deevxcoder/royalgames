@@ -422,28 +422,28 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
   }, [gameState, multiplier, countdown, crashMultiplier]);
 
   return (
-    <div className="relative w-full h-full min-h-[360px] md:min-h-[440px] flex items-center justify-center overflow-hidden rounded-3xl bg-[#030712] border border-amber-500/20 shadow-2xl">
+    <div className="relative w-full h-full min-h-[220px] sm:min-h-[280px] md:min-h-[360px] flex items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl bg-[#030712] border border-amber-500/20 shadow-2xl">
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
 
       {/* Multiplier Ascending HUD */}
       {gameState === "AIRBORNE" && (
         <div className="relative z-10 flex flex-col items-center justify-center pointer-events-none select-none">
-          <div className="text-6xl sm:text-7xl md:text-8xl font-black font-mono tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-amber-300 to-amber-500 drop-shadow-[0_10px_35px_rgba(245,158,11,0.4)] animate-pulse">
+          <div className="text-5xl sm:text-6xl md:text-7xl font-black font-mono tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-amber-300 to-amber-500 drop-shadow-[0_10px_35px_rgba(245,158,11,0.4)] animate-pulse">
             {multiplier.toFixed(2)}x
           </div>
-          <span className="text-xs font-mono font-black text-amber-300 uppercase tracking-widest bg-amber-500/10 border border-amber-500/30 px-3.5 py-1 rounded-full mt-2">
-            🏏 SOARING SHOT ALTITUDE
+          <span className="text-[10px] sm:text-xs font-mono font-black text-amber-300 uppercase tracking-widest bg-amber-500/10 border border-amber-500/30 px-3 py-0.5 rounded-full mt-1.5 backdrop-blur-sm">
+            🏏 LOFTED SHOT ALTITUDE
           </span>
         </div>
       )}
 
       {/* Caught Out Banner Overlay */}
       {gameState === "CAUGHT" && (
-        <div className="relative z-10 flex flex-col items-center justify-center text-center p-4 space-y-1 pointer-events-none animate-bounce">
-          <div className="text-xs font-mono font-black text-rose-400 uppercase tracking-widest bg-rose-950/80 border border-rose-500/50 px-4 py-1 rounded-full">
+        <div className="relative z-10 flex flex-col items-center justify-center text-center p-3 space-y-1 pointer-events-none animate-bounce">
+          <div className="text-[10px] sm:text-xs font-mono font-black text-rose-400 uppercase tracking-widest bg-rose-950/90 border border-rose-500/60 px-3.5 py-1 rounded-full shadow-lg">
             CAUGHT AT BOUNDARY
           </div>
-          <div className="text-6xl sm:text-7xl font-black font-mono text-rose-500 drop-shadow-[0_10px_30px_rgba(225,29,72,0.6)]">
+          <div className="text-5xl sm:text-6xl font-black font-mono text-rose-500 drop-shadow-[0_10px_30px_rgba(225,29,72,0.6)]">
             {(crashMultiplier || multiplier).toFixed(2)}x
           </div>
         </div>
@@ -451,12 +451,12 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
 
       {/* Countdown Preparing Overlay */}
       {gameState === "PREPARING" && (
-        <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-3 pointer-events-none">
-          <div className="w-24 h-24 rounded-full bg-[#081224]/80 border border-amber-500/40 flex flex-col items-center justify-center shadow-xl shadow-amber-500/20 backdrop-blur-md">
-            <span className="text-2xl font-black font-mono text-amber-400">{countdown.toFixed(1)}s</span>
-            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">NEXT OVER</span>
+        <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-2 pointer-events-none">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#081224]/85 border border-amber-500/40 flex flex-col items-center justify-center shadow-xl shadow-amber-500/20 backdrop-blur-md">
+            <span className="text-xl sm:text-2xl font-black font-mono text-amber-400">{countdown.toFixed(1)}s</span>
+            <span className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">NEXT BALL</span>
           </div>
-          <p className="text-xs font-bold text-gray-300 tracking-wide uppercase">
+          <p className="text-[10px] sm:text-xs font-bold text-gray-300 tracking-wide uppercase">
             Bowler Approaching Crease...
           </p>
         </div>

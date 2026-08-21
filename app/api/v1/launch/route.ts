@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const selectedGameUid = game_uid || "royal_coinflip";
+    const selectedGameUid = game_uid || "royal_skyrush";
     const gameMeta = STUDIO_GAMES.find((g) => g.game_uid === selectedGameUid);
     if (!gameMeta) {
       return NextResponse.json(

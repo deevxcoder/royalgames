@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dropBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#021424" />
+      <stop offset="50%" stop-color="#010a12" />
+      <stop offset="100%" stop-color="#000408" />
+    </linearGradient>
+    <filter id="plinkoGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="7" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#dropBg)" />
+
+  <!-- Peg Pyramid (Right Side) -->
+  <g transform="translate(380, 80) scale(0.9)" filter="url(#plinkoGlow)">
+    <!-- Row 1 -->
+    <circle cx="100" cy="0" r="3.5" fill="#ffffff" />
+    <!-- Row 2 -->
+    <circle cx="85" cy="28" r="3.5" fill="#ffffff" />
+    <circle cx="115" cy="28" r="3.5" fill="#ffffff" />
+    <!-- Row 3 -->
+    <circle cx="70" cy="56" r="3.5" fill="#ffffff" />
+    <circle cx="100" cy="56" r="3.5" fill="#ffffff" />
+    <circle cx="130" cy="56" r="3.5" fill="#ffffff" />
+    <!-- Row 4 -->
+    <circle cx="55" cy="84" r="3.5" fill="#ffffff" />
+    <circle cx="85" cy="84" r="3.5" fill="#ffffff" />
+    <circle cx="115" cy="84" r="3.5" fill="#ffffff" />
+    <circle cx="145" cy="84" r="3.5" fill="#ffffff" />
+    <!-- Row 5 -->
+    <circle cx="40" cy="112" r="3.5" fill="#ffffff" />
+    <circle cx="70" cy="112" r="3.5" fill="#ffffff" />
+    <circle cx="100" cy="112" r="3.5" fill="#ffffff" />
+    <circle cx="130" cy="112" r="3.5" fill="#ffffff" />
+    <circle cx="160" cy="112" r="3.5" fill="#ffffff" />
+    <!-- Row 6 -->
+    <circle cx="25" cy="140" r="3.5" fill="#ffffff" />
+    <circle cx="55" cy="140" r="3.5" fill="#ffffff" />
+    <circle cx="85" cy="140" r="3.5" fill="#ffffff" />
+    <circle cx="115" cy="140" r="3.5" fill="#ffffff" />
+    <circle cx="145" cy="140" r="3.5" fill="#ffffff" />
+    <circle cx="175" cy="140" r="3.5" fill="#ffffff" />
+
+    <!-- Tumbling Glowing Pink & Gold Balls -->
+    <circle cx="88" cy="40" r="8" fill="#f43f5e" />
+    <circle cx="128" cy="98" r="8" fill="#fbbf24" />
+    <circle cx="60" cy="125" r="8" fill="#38bdf8" />
+
+    <!-- Multiplier Buckets at bottom -->
+    <rect x="15" y="165" width="28" height="20" rx="5" fill="#e11d48" />
+    <text x="29" y="179" fill="#ffffff" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">100x</text>
+
+    <rect x="48" y="165" width="28" height="20" rx="5" fill="#ea580c" />
+    <text x="62" y="179" fill="#ffffff" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">25x</text>
+
+    <rect x="81" y="165" width="28" height="20" rx="5" fill="#ca8a04" />
+    <text x="95" y="179" fill="#ffffff" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">5x</text>
+
+    <rect x="114" y="165" width="28" height="20" rx="5" fill="#059669" />
+    <text x="128" y="179" fill="#ffffff" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">1.5x</text>
+
+    <rect x="147" y="165" width="28" height="20" rx="5" fill="#ea580c" />
+    <text x="161" y="179" fill="#ffffff" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">25x</text>
+
+    <rect x="180" y="165" width="28" height="20" rx="5" fill="#e11d48" />
+    <text x="194" y="179" fill="#ffffff" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle">1000x</text>
+  </g>
+
+  <!-- Badges & Titles -->
+  <rect x="30" y="30" width="135" height="24" rx="12" fill="#082f49" stroke="#38bdf8" stroke-width="1" opacity="0.9" />
+  <text x="97" y="46" fill="#7dd3fc" font-family="system-ui, sans-serif" font-size="11" font-weight="900" text-anchor="middle" letter-spacing="1">PHYSICS PLINKO</text>
+
+  <text x="30" y="240" fill="#ffffff" font-family="system-ui, sans-serif" font-size="32" font-weight="900" letter-spacing="1">DROP X</text>
+  <text x="30" y="265" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" font-weight="600">Metallic Peg Multiplier Cascade</text>
+  
+  <rect x="470" y="30" width="100" height="28" rx="10" fill="#1e1b4b" stroke="#38bdf8" stroke-width="1" />
+  <text x="520" y="49" fill="#7dd3fc" font-family="monospace" font-size="13" font-weight="900" text-anchor="middle">MAX 1000x</text>
+</svg>

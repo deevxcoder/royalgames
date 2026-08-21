@@ -2,11 +2,35 @@
 
 import React, { useEffect, useRef } from "react";
 
+export interface JumpPassengerEvent {
+  id: string;
+  user: string;
+  amount: number;
+  multiplier: number;
+  timestamp: number;
+}
+
 interface SkyRushCanvasProps {
   gameState: "COUNTDOWN" | "FLYING" | "CRASHED";
   multiplier: number;
   countdown: number;
   crashMultiplier?: number;
+  cashoutEvents?: JumpPassengerEvent[];
+}
+
+interface Jumper {
+  id: string;
+  user: string;
+  amount: number;
+  multiplier: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  parachuteOpen: boolean;
+  age: number;
+  maxLife: number;
+  canopyColor: string;
 }
 
 export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
@@ -14,8 +38,50 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
   multiplier,
   countdown,
   crashMultiplier,
+  cashoutEvents = [],
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const activeJumpersRef = useRef<Jumper[]>([]);
+  const handledEventIdsRef = useRef<Set<string>>(new Set());
+
+  // Store current jet position in ref for jumper spawn
+  const currentJetPosRef = useRef<{ x: number; y: number; angle: number }>({ x: 50, y: 300, angle: -0.35 });
+
+  // Listen for new cashout events and spawn parachutists directly from the jet
+  useEffect(() => {
+    if (gameState !== "FLYING") {
+      if (gameState === "COUNTDOWN") {
+        activeJumpersRef.current = [];
+        handledEventIdsRef.current.clear();
+      }
+      return;
+    }
+
+    const { x: jetX, y: jetY } = currentJetPosRef.current;
+    const colors = ["#10b981", "#06b6d4", "#f59e0b", "#a855f7", "#ec4899", "#3b82f6"];
+
+    cashoutEvents.forEach((ev) => {
+      if (!handledEventIdsRef.current.has(ev.id)) {
+        handledEventIdsRef.current.add(ev.id);
+
+        // Spawn jumper from the back/side of the jet
+        activeJumpersRef.current.push({
+          id: ev.id,
+          user: ev.user,
+          amount: ev.amount,
+          multiplier: ev.multiplier,
+          x: jetX - 15 + (Math.random() - 0.5) * 10,
+          y: jetY + (Math.random() - 0.5) * 8,
+          vx: -(Math.random() * 2.0 + 2.0),
+          vy: -(Math.random() * 2.0 + 1.2),
+          parachuteOpen: false,
+          age: 0,
+          maxLife: 4.2, // 4.2 seconds on screen
+          canopyColor: colors[Math.floor(Math.random() * colors.length)],
+        });
+      }
+    });
+  }, [cashoutEvents, gameState]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -62,24 +128,21 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
       ctx.save();
       ctx.scale(dpr, dpr);
 
-      // 1. Background Sky Atmosphere Gradient (Dynamic based on multiplier)
+      // 1. Background Sky Atmosphere Gradient
       const grad = ctx.createLinearGradient(0, 0, 0, height);
       if (gameState === "CRASHED") {
         grad.addColorStop(0, "#1a080c");
         grad.addColorStop(0.6, "#120508");
         grad.addColorStop(1, "#080304");
       } else if (multiplier > 50) {
-        // Cosmic Gold / Space
         grad.addColorStop(0, "#190e2b");
         grad.addColorStop(0.5, "#0e091a");
         grad.addColorStop(1, "#07050d");
       } else if (multiplier > 10) {
-        // Deep Stratosphere Purple
         grad.addColorStop(0, "#0c152e");
         grad.addColorStop(0.5, "#090d1f");
         grad.addColorStop(1, "#050711");
       } else {
-        // Cyber Blue / Night
         grad.addColorStop(0, "#091426");
         grad.addColorStop(0.6, "#070c17");
         grad.addColorStop(1, "#05070d");
@@ -133,7 +196,6 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
       let angle = -0.35; // radians
 
       if (gameState === "FLYING" || gameState === "CRASHED") {
-        // Curve progress based on log of multiplier
         const progress = Math.min(1.0, (Math.log(multiplier) / Math.log(30)) * 0.85 + 0.1);
         const curveMaxX = width * 0.82;
         const curveMinY = height * 0.18;
@@ -141,19 +203,18 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         jetX = originX + (curveMaxX - originX) * Math.pow(progress, 0.75);
         jetY = originY - (originY - curveMinY) * Math.pow(progress, 1.25);
 
-        // Calculate slope for aircraft angle
         const dx = 1;
         const dy = -1.25 * ((originY - curveMinY) / (curveMaxX - originX)) * Math.pow(progress, 0.25);
         angle = Math.atan2(dy, dx);
+
+        currentJetPosRef.current = { x: jetX, y: jetY, angle };
       }
 
       // 5. Draw Flight Trajectory Curve & Altitude Area
       if (gameState === "FLYING" || gameState === "CRASHED") {
-        // Area under curve
         ctx.beginPath();
         ctx.moveTo(originX, originY);
 
-        // Cubic Bezier to Jet position
         const cp1x = originX + (jetX - originX) * 0.45;
         const cp1y = originY;
         const cp2x = originX + (jetX - originX) * 0.75;
@@ -184,12 +245,11 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         ctx.shadowColor = gameState === "CRASHED" ? "#e11d48" : "#f59e0b";
         ctx.shadowBlur = 16;
         ctx.stroke();
-        ctx.shadowBlur = 0; // Reset glow
+        ctx.shadowBlur = 0;
       }
 
       // 6. Draw Exhaust Particles (Jet Trail)
       if (gameState === "FLYING") {
-        // Spawn exhaust
         const tailX = jetX - Math.cos(angle) * 32;
         const tailY = jetY - Math.sin(angle) * 32;
 
@@ -204,7 +264,6 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         }
       }
 
-      // Update & Draw Exhaust Particles
       for (let i = exhaustParticles.length - 1; i >= 0; i--) {
         const p = exhaustParticles[i];
         p.life -= 0.04;
@@ -222,7 +281,139 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         ctx.fill();
       }
 
-      // 7. Draw Cyber Supersonic Aircraft
+      // 7. DRAW EJECTED PASSENGERS WITH PARACHUTES JUMPING FROM JET
+      const jumpers = activeJumpersRef.current;
+      for (let i = jumpers.length - 1; i >= 0; i--) {
+        const j = jumpers[i];
+        j.age += 0.02;
+
+        // Open parachute after 0.25s jump delay
+        if (j.age > 0.25) {
+          j.parachuteOpen = true;
+          // Apply parachute drag (gentle float down & drift with starfield)
+          j.vy = Math.min(1.4, j.vy + 0.08);
+          j.vx = - (1.6 + starSpeedMultiplier * 0.35);
+        } else {
+          // Freefall impulse
+          j.vy += 0.25;
+        }
+
+        j.x += j.vx;
+        j.y += j.vy;
+
+        const lifeRatio = Math.max(0, 1 - j.age / j.maxLife);
+        if (lifeRatio <= 0 || j.y > height + 50 || j.x < -100) {
+          jumpers.splice(i, 1);
+          continue;
+        }
+
+        // Draw Parachute and Passenger
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, lifeRatio * 1.5);
+        ctx.translate(j.x, j.y);
+
+        // Subtle swaying motion
+        const sway = Math.sin(time * 6 + j.x * 0.05) * 0.15;
+        ctx.rotate(sway);
+
+        if (j.parachuteOpen) {
+          // Parachute Canopy Dome
+          ctx.beginPath();
+          ctx.arc(0, -22, 18, Math.PI, 0, false);
+          ctx.closePath();
+
+          const canopyGrad = ctx.createLinearGradient(0, -40, 0, -20);
+          canopyGrad.addColorStop(0, j.canopyColor);
+          canopyGrad.addColorStop(1, "rgba(16, 185, 129, 0.4)");
+          ctx.fillStyle = canopyGrad;
+          ctx.shadowColor = j.canopyColor;
+          ctx.shadowBlur = 10;
+          ctx.fill();
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          // Parachute Cords
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(-16, -22);
+          ctx.lineTo(0, -4);
+          ctx.moveTo(16, -22);
+          ctx.lineTo(0, -4);
+          ctx.moveTo(0, -22);
+          ctx.lineTo(0, -4);
+          ctx.stroke();
+        }
+
+        // Passenger Character (Cyber Pilot Body)
+        // Helmet / Head
+        ctx.fillStyle = "#f8fafc";
+        ctx.beginPath();
+        ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Glowing Visor
+        ctx.fillStyle = "#38bdf8";
+        ctx.beginPath();
+        ctx.arc(1.5, 0, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Suit Body
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(-3, 4, 6, 7);
+
+        // Limbs
+        ctx.strokeStyle = "#94a3b8";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-3, 6);
+        ctx.lineTo(-6, 10);
+        ctx.moveTo(3, 6);
+        ctx.lineTo(6, 10);
+        ctx.moveTo(-2, 11);
+        ctx.lineTo(-4, 17);
+        ctx.moveTo(2, 11);
+        ctx.lineTo(4, 17);
+        ctx.stroke();
+
+        // Floating Cashout Bubble Badge above the parachute
+        const badgeWidth = 96;
+        const badgeHeight = 22;
+        const badgeX = -badgeWidth / 2;
+        const badgeY = j.parachuteOpen ? -54 : -32;
+
+        // Bubble Background
+        ctx.fillStyle = "rgba(6, 12, 24, 0.9)";
+        ctx.strokeStyle = "#10b981";
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = "#10b981";
+        ctx.shadowBlur = 8;
+
+        // Draw rounded rectangle
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 10);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // User Name text
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 9px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(j.user.slice(0, 8), badgeX + 7, badgeY + 14);
+
+        // Multiplier / Win Amount in bright Emerald
+        ctx.fillStyle = "#34d399";
+        ctx.font = "bold 9.5px monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(`${j.multiplier.toFixed(2)}x`, badgeX + badgeWidth - 6, badgeY + 14);
+
+        ctx.restore();
+      }
+
+      // 8. Draw Cyber Supersonic Aircraft
       if (gameState !== "CRASHED") {
         ctx.save();
         ctx.translate(jetX, jetY);
@@ -288,10 +479,9 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         ctx.restore();
       }
 
-      // 8. Draw Crash Sonic Boom Explosion
+      // 9. Draw Crash Sonic Boom Explosion
       if (gameState === "CRASHED") {
         if (shockwaveRadius === 0) {
-          // Initialize crash explosion particles once
           for (let i = 0; i < 45; i++) {
             const speed = Math.random() * 8 + 2;
             const dir = Math.random() * Math.PI * 2;
@@ -308,14 +498,12 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
 
         shockwaveRadius += 4;
 
-        // Shockwave Ring
         ctx.beginPath();
         ctx.arc(jetX, jetY, shockwaveRadius, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(244, 63, 94, ${Math.max(0, 1 - shockwaveRadius / 120)})`;
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Particles
         for (let i = crashParticles.length - 1; i >= 0; i--) {
           const cp = crashParticles[i];
           cp.x += cp.vx;
@@ -337,13 +525,12 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         crashParticles.length = 0;
       }
 
-      // 9. Countdown Ring Overlay
+      // 10. Countdown Ring Overlay
       if (gameState === "COUNTDOWN") {
         ctx.save();
         ctx.translate(width / 2, height / 2);
 
-        // Circular progress indicator
-        const progress = countdown / 5.0; // 5s countdown
+        const progress = countdown / 4.0;
         ctx.beginPath();
         ctx.arc(0, 0, 52, -Math.PI / 2, -Math.PI / 2 + (1 - progress) * Math.PI * 2, false);
         ctx.strokeStyle = "#f59e0b";
@@ -368,7 +555,7 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
   }, [gameState, multiplier, countdown, crashMultiplier]);
 
   return (
-    <div className="relative w-full h-full min-h-[380px] md:min-h-[460px] flex items-center justify-center overflow-hidden rounded-2xl bg-[#06080e]">
+    <div className="relative w-full h-full min-h-[300px] sm:min-h-[360px] md:min-h-[420px] flex items-center justify-center overflow-hidden rounded-2xl bg-[#06080e]">
       {/* HTML5 Canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
 
