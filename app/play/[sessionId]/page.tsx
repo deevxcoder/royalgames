@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { sound } from "@/lib/soundFx";
 import { STUDIO_GAMES } from "@/lib/gamesCatalog";
+import { MaharajaRichesGame } from "@/components/games/MaharajaRichesGame";
 import { SkyRushGame } from "@/components/games/SkyRushGame";
 import { TigerTrailGame } from "@/components/games/TigerTrailGame";
 import { BombGridGame } from "@/components/games/BombGridGame";
@@ -32,7 +33,7 @@ export default function PlaySessionPage() {
   const router = useRouter();
 
   const sessionId = (params?.sessionId as string) || "sess_demo";
-  const initialGame = searchParams.get("game") || "royal_skyrush";
+  const initialGame = searchParams.get("game") || "royal_maharajariches";
   const returnUrl = searchParams.get("returnUrl") || "/";
 
   const [activeGame, setActiveGame] = useState<string>(initialGame);
@@ -102,7 +103,7 @@ export default function PlaySessionPage() {
               <div className="absolute top-12 left-0 w-64 bg-[#0a0e1a] border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 space-y-1 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
                 <div className="text-[10px] font-bold text-gray-500 uppercase px-2.5 py-1 border-b border-slate-800 flex items-center justify-between">
                   <span>Switch Studio Title</span>
-                  <span className="text-amber-400 font-mono">10 Games</span>
+                  <span className="text-amber-400 font-mono">{STUDIO_GAMES.length} Games</span>
                 </div>
                 <div className="max-h-72 overflow-y-auto space-y-0.5">
                   {STUDIO_GAMES.map((g) => (
@@ -191,6 +192,19 @@ export default function PlaySessionPage() {
         <div className="w-full bg-[#0b0f19] border border-slate-800/90 rounded-2xl sm:rounded-3xl p-1.5 sm:p-3 md:p-4 flex flex-col items-center justify-start relative overflow-hidden shadow-2xl">
           {/* Ambient Background Glow */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+          {/* GAME 0: MAHARAJA RICHES (3D 5x3 Royal Indian Slot) */}
+          {activeGame === "royal_maharajariches" && (
+            <div className="w-full">
+              <MaharajaRichesGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={(data) => {
+                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
+                }}
+              />
+            </div>
+          )}
 
           {/* GAME 1: SKY RUSH (Crash Multiplier Jet) */}
           {activeGame === "royal_skyrush" && (

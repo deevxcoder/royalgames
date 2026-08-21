@@ -250,6 +250,146 @@ class SoundFX {
     osc.start();
     osc.stop(this.ctx.currentTime + 0.03);
   }
+
+  // --- 🎰 SLOT MACHINE SOUND EFFECTS ---
+
+  // Reel spinning continuous tick
+  public playSlotSpinTick() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(350 + Math.random() * 80, this.ctx.currentTime);
+
+    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.04);
+  }
+
+  // Reel Stop Clunk (Pitch increases per reel 0..4)
+  public playReelStop(reelIndex: number = 0) {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const baseFreq = 220 + reelIndex * 50; // ascending pitch
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(baseFreq * 1.5, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.7, this.ctx.currentTime + 0.09);
+
+    gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.09);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.09);
+  }
+
+  // Scatter Anticipation / Hit Sound
+  public playScatterHit(count: number = 1) {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const notes = [659.25, 880, 1174.66, 1567.98]; // E5, A5, D6, G6
+    const freq = notes[Math.min(count - 1, notes.length - 1)] || 880;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.3, this.ctx.currentTime + 0.25);
+
+    gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.35);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.35);
+  }
+
+  // Payline Win Chime
+  public playLineWin() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const chords = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+    chords.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, this.ctx!.currentTime + idx * 0.05);
+
+      gain.gain.setValueAtTime(0, this.ctx!.currentTime + idx * 0.05);
+      gain.gain.linearRampToValueAtTime(0.25, this.ctx!.currentTime + idx * 0.05 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx!.currentTime + idx * 0.05 + 0.3);
+
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      osc.start(this.ctx!.currentTime + idx * 0.05);
+      osc.stop(this.ctx!.currentTime + idx * 0.05 + 0.3);
+    });
+  }
+
+  // Jili / PG Soft Style Big Win Celebration Orchestral Chime
+  public playBigWinFanfare(tier: "BIG" | "MEGA" | "SUPER" | "MAHARAJA" = "BIG") {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const count = tier === "MAHARAJA" ? 10 : tier === "SUPER" ? 8 : tier === "MEGA" ? 6 : 4;
+    const baseNotes = [440, 554.37, 659.25, 880, 1108.73, 1318.51, 1760, 2217.46, 2637.02, 3520];
+
+    for (let i = 0; i < count; i++) {
+      const freq = baseNotes[i % baseNotes.length];
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = i % 2 === 0 ? "triangle" : "sine";
+      osc.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.08);
+
+      gain.gain.setValueAtTime(0, this.ctx.currentTime + i * 0.08);
+      gain.gain.linearRampToValueAtTime(0.35, this.ctx.currentTime + i * 0.08 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i * 0.08 + 0.6);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(this.ctx.currentTime + i * 0.08);
+      osc.stop(this.ctx.currentTime + i * 0.08 + 0.6);
+    }
+  }
+
+  // Rapid Coin Tally Click
+  public playCoinTally(pitchMod: number = 1.0) {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(1400 * pitchMod, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(900 * pitchMod, this.ctx.currentTime + 0.04);
+
+    gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.04);
+  }
 }
 
 export const sound = new SoundFX();

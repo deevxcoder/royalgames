@@ -26,13 +26,14 @@ import {
 } from "lucide-react";
 import { STUDIO_GAMES } from "@/lib/gamesCatalog";
 
-const CATEGORIES = ["ALL", "CRASH", "MINES & STEP", "PHYSICS & PLINKO", "FAST & PROBABILITY", "CARDS & WHEEL"];
+const CATEGORIES = ["ALL", "SLOTS", "CRASH", "MINES & STEP", "PHYSICS & PLINKO", "FAST & PROBABILITY", "CARDS & WHEEL"];
 
 export default function LandingPage() {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
 
   const filteredGames = STUDIO_GAMES.filter((game) => {
     if (selectedCategory === "ALL") return true;
+    if (selectedCategory === "SLOTS") return game.category.toLowerCase().includes("slot");
     if (selectedCategory === "CRASH") return game.category.toLowerCase().includes("crash");
     if (selectedCategory === "MINES & STEP") return game.category.toLowerCase().includes("mines") || game.category.toLowerCase().includes("step") || game.category.toLowerCase().includes("tower");
     if (selectedCategory === "PHYSICS & PLINKO") return game.category.toLowerCase().includes("plinko") || game.category.toLowerCase().includes("physics");
@@ -95,7 +96,7 @@ export default function LandingPage() {
           {/* Quick Studio Stats Pill Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 max-w-2xl mx-auto">
             <div className="p-3 bg-[#0a0e1a] border border-slate-800 rounded-2xl text-center">
-              <span className="text-lg sm:text-xl font-black font-mono text-amber-400 block">10 Titles</span>
+              <span className="text-lg sm:text-xl font-black font-mono text-amber-400 block">{STUDIO_GAMES.length} Titles</span>
               <span className="text-[10px] uppercase font-bold text-gray-500">Native Suite</span>
             </div>
             <div className="p-3 bg-[#0a0e1a] border border-slate-800 rounded-2xl text-center">

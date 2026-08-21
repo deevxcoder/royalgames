@@ -14,6 +14,19 @@ export interface StudioGame {
 
 export const STUDIO_GAMES: StudioGame[] = [
   {
+    game_id: 88811,
+    game_uid: "royal_maharajariches",
+    name: "Maharaja Riches",
+    provider: "Royal Games Studio",
+    category: "3D Slots / Royal",
+    rtp: 97.2,
+    max_multiplier: 5000.0,
+    logo: null,
+    thumbnail: "/games/royal_maharajariches.svg",
+    description: "Opulent 5x3 Indian 3D Royal Slot with 20 Paylines, Wild 2x Multipliers, Jili-style Grand Big Win explosions, and 10 Free Spins 3x Bonus!",
+    isFeatured: true,
+  },
+  {
     game_id: 88801,
     game_uid: "royal_skyrush",
     name: "Sky Rush",
