@@ -93,7 +93,16 @@ const COUNTDOWN_DURATION_MS = 10000; // 10.0 seconds bet window for synchronized
 const CRASHED_DURATION_MS = 3500;    // 3.5 seconds post-crash review
 
 function getOrInitGame(gameUid: string): InternalGameState {
-  if (!globalContainer.games[gameUid]) {
+  const existing = globalContainer.games[gameUid];
+  if (
+    !existing ||
+    typeof existing.crashedEndTime !== "number" ||
+    isNaN(existing.crashedEndTime) ||
+    typeof existing.flightStart !== "number" ||
+    isNaN(existing.flightStart) ||
+    typeof existing.countdownStart !== "number" ||
+    isNaN(existing.countdownStart)
+  ) {
     const seedCrash = generateCrashMultiplier(gameUid);
     const flightDurMs = Math.round(calculateFlightDurationSeconds(seedCrash) * 1000);
     const now = Date.now();
