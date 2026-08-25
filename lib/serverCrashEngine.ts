@@ -15,6 +15,7 @@ export interface GlobalCrashState {
   serverTime: number;
   countdownTotalMs: number;
   crashedTotalMs: number;
+  flightDurationMs: number;
   history: number[];
 }
 
@@ -22,10 +23,12 @@ interface InternalGameState {
   gameUid: string;
   roundSequence: number;
   roundId: string;
-  phase: CrashPhase;
   crashMultiplier: number;
-  phaseStartTime: number;
-  flightStartTime: number | null;
+  flightDurationMs: number;
+  countdownStart: number; // T0
+  flightStart: number;    // T0 + 10000
+  crashTime: number;      // T0 + 10000 + flightDurationMs
+  crashedEndTime: number; // crashTime + 3500
   history: number[];
 }
 
@@ -65,6 +68,15 @@ export function calculateAscentMultiplier(elapsedSeconds: number): number {
   return Number(Math.max(1.0, mult).toFixed(2));
 }
 
+// Exact mathematical inverse: calculate flight duration in seconds for a given crash multiplier
+export function calculateFlightDurationSeconds(targetMultiplier: number): number {
+  if (targetMultiplier <= 1.0) return 0.1;
+  const lnM = Math.log(Math.max(1.0001, targetMultiplier));
+  const inner = lnM / 0.065;
+  const elapsed = Math.pow(inner, 0.8) / 1.5;
+  return Math.max(0.1, Number(elapsed.toFixed(3)));
+}
+
 // Global in-memory singleton to persist state across hot-reloads and API calls
 const globalEngineKey = Symbol.for("royal_games_crash_engine_state");
 
@@ -77,88 +89,106 @@ const globalContainer: GlobalEngineContainer = (globalThis as any)[globalEngineK
 };
 (globalThis as any)[globalEngineKey] = globalContainer;
 
+const COUNTDOWN_DURATION_MS = 10000; // 10.0 seconds bet window for synchronized multiplayer
+const CRASHED_DURATION_MS = 3500;    // 3.5 seconds post-crash review
+
 function getOrInitGame(gameUid: string): InternalGameState {
   if (!globalContainer.games[gameUid]) {
     const seedCrash = generateCrashMultiplier(gameUid);
+    const flightDurMs = Math.round(calculateFlightDurationSeconds(seedCrash) * 1000);
+    const now = Date.now();
+    const countdownStart = now;
+    const flightStart = countdownStart + COUNTDOWN_DURATION_MS;
+    const crashTime = flightStart + flightDurMs;
+    const crashedEndTime = crashTime + CRASHED_DURATION_MS;
+
     globalContainer.games[gameUid] = {
       gameUid,
       roundSequence: 1000,
-      roundId: `RND_${gameUid.toUpperCase()}_${Date.now()}`,
-      phase: "COUNTDOWN",
+      roundId: `RND_${gameUid.toUpperCase()}_${countdownStart}_1000`,
       crashMultiplier: seedCrash,
-      phaseStartTime: Date.now(),
-      flightStartTime: null,
+      flightDurationMs: flightDurMs,
+      countdownStart,
+      flightStart,
+      crashTime,
+      crashedEndTime,
       history: [1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2, 8.45, 1.45, 24.18],
     };
   }
   return globalContainer.games[gameUid];
 }
 
-const COUNTDOWN_DURATION_MS = 10000; // 10.0 seconds bet window for synchronized multiplayer
-const CRASHED_DURATION_MS = 3500; // 3.5 seconds post-crash review
-
-// Advance game clock authoritatively
+// Advance game clock authoritatively and deterministically based on absolute real-time clock
 export function tickAndGetState(gameUid: string): GlobalCrashState {
   const state = getOrInitGame(gameUid);
   const now = Date.now();
-  const elapsedInPhase = now - state.phaseStartTime;
 
-  if (state.phase === "COUNTDOWN") {
-    if (elapsedInPhase >= COUNTDOWN_DURATION_MS) {
-      // Transition from COUNTDOWN to FLYING
-      state.phase = "FLYING";
-      state.phaseStartTime = now;
-      state.flightStartTime = now;
-    }
-  } else if (state.phase === "FLYING") {
-    const elapsedSeconds = (now - (state.flightStartTime || now)) / 1000;
-    const currentMult = calculateAscentMultiplier(elapsedSeconds);
+  // If time has passed the end of the previous round, seamlessly advance to next round(s)
+  while (now >= state.crashedEndTime) {
+    state.roundSequence += 1;
+    state.history = [state.crashMultiplier, ...state.history.slice(0, 19)];
 
-    if (currentMult >= state.crashMultiplier) {
-      // Transition from FLYING to CRASHED
-      state.phase = "CRASHED";
-      state.phaseStartTime = now;
-      state.history = [state.crashMultiplier, ...state.history.slice(0, 19)];
-    }
-  } else if (state.phase === "CRASHED") {
-    if (elapsedInPhase >= CRASHED_DURATION_MS) {
-      // Transition from CRASHED to next COUNTDOWN
-      state.roundSequence += 1;
-      state.roundId = `RND_${gameUid.toUpperCase()}_${now}_${state.roundSequence}`;
-      state.phase = "COUNTDOWN";
-      state.phaseStartTime = now;
-      state.flightStartTime = null;
-      state.crashMultiplier = generateCrashMultiplier(gameUid);
-    }
+    const newCrash = generateCrashMultiplier(gameUid);
+    const newFlightDurMs = Math.round(calculateFlightDurationSeconds(newCrash) * 1000);
+
+    const newCountdownStart = state.crashedEndTime;
+    const newFlightStart = newCountdownStart + COUNTDOWN_DURATION_MS;
+    const newCrashTime = newFlightStart + newFlightDurMs;
+    const newCrashedEndTime = newCrashTime + CRASHED_DURATION_MS;
+
+    state.roundId = `RND_${gameUid.toUpperCase()}_${newCountdownStart}_${state.roundSequence}`;
+    state.crashMultiplier = newCrash;
+    state.flightDurationMs = newFlightDurMs;
+    state.countdownStart = newCountdownStart;
+    state.flightStart = newFlightStart;
+    state.crashTime = newCrashTime;
+    state.crashedEndTime = newCrashedEndTime;
   }
 
-  // Calculate current multiplier for response
+  let phase: CrashPhase;
   let currentMultiplier = 1.0;
   let countdownLeft = 0;
+  let phaseStartTime = state.countdownStart;
+  let flightStartTime: number | null = null;
 
-  if (state.phase === "COUNTDOWN") {
-    const remaining = Math.max(0, COUNTDOWN_DURATION_MS - elapsedInPhase);
-    countdownLeft = Number((remaining / 1000).toFixed(1));
+  if (now < state.flightStart) {
+    // In 10.0s COUNTDOWN
+    phase = "COUNTDOWN";
+    phaseStartTime = state.countdownStart;
+    const remainingMs = Math.max(0, state.flightStart - now);
+    countdownLeft = Number((remainingMs / 1000).toFixed(1));
     currentMultiplier = 1.0;
-  } else if (state.phase === "FLYING") {
-    const elapsedSeconds = (now - (state.flightStartTime || now)) / 1000;
-    currentMultiplier = Math.min(state.crashMultiplier, calculateAscentMultiplier(elapsedSeconds));
-  } else if (state.phase === "CRASHED") {
+    flightStartTime = null;
+  } else if (now < state.crashTime) {
+    // In FLYING
+    phase = "FLYING";
+    phaseStartTime = state.flightStart;
+    flightStartTime = state.flightStart;
+    const elapsedSec = (now - state.flightStart) / 1000;
+    currentMultiplier = Number(Math.min(state.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2));
+    countdownLeft = 0;
+  } else {
+    // In CRASHED review
+    phase = "CRASHED";
+    phaseStartTime = state.crashTime;
+    flightStartTime = state.flightStart;
     currentMultiplier = state.crashMultiplier;
+    countdownLeft = 0;
   }
 
   return {
     gameUid: state.gameUid,
     roundId: state.roundId,
-    phase: state.phase,
+    phase,
     currentMultiplier,
     crashMultiplier: state.crashMultiplier,
     countdownLeft,
-    flightStartTime: state.flightStartTime,
-    phaseStartTime: state.phaseStartTime,
+    flightStartTime,
+    phaseStartTime,
     serverTime: now,
     countdownTotalMs: COUNTDOWN_DURATION_MS,
     crashedTotalMs: CRASHED_DURATION_MS,
+    flightDurationMs: state.flightDurationMs,
     history: state.history,
   };
 }

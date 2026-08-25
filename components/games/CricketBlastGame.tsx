@@ -37,6 +37,7 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
   // Bet State
   const [betAmount, setBetAmount] = useState(50);
   const [isBetPlaced, setIsBetPlaced] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [hasCashedOut, setHasCashedOut] = useState(false);
   const [autoCashoutEnabled, setAutoCashoutEnabled] = useState(false);
   const [autoCashoutMult, setAutoCashoutMult] = useState(2.0);
@@ -72,7 +73,9 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
     const pollServerState = async () => {
       try {
         const fetchStart = Date.now();
-        const res = await fetch("/api/studio/multiplayer/state?game=royal_cricketblast");
+        const res = await fetch("/api/studio/multiplayer/state?game=royal_cricketblast&_t=" + fetchStart, {
+          cache: "no-store",
+        });
         const data = await res.json();
         const fetchEnd = Date.now();
         if (!isMounted || !data.success) return;
@@ -83,6 +86,7 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
         serverOffsetRef.current = estimatedServerNow - fetchEnd;
 
         serverStateRef.current = data;
+        setIsReady(true);
 
         const isNewRound = currentRoundIdRef.current !== data.roundId;
         const isNewPhase = activePhaseRef.current !== data.phase;
@@ -169,10 +173,11 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
           triggerCashout(autoCashoutMultRef.current);
         }
       } else if (serverState.phase === "COUNTDOWN") {
-        const elapsedInPhase = Math.max(0, accurateServerNow - serverState.phaseStartTime);
-        const totalDuration = serverState.countdownTotalMs || 10000;
-        const timeLeft = Math.max(0, (totalDuration - elapsedInPhase) / 1000);
-        setCountdown(Number(timeLeft.toFixed(1)));
+        const flightStartTime = serverState.phaseStartTime + (serverState.countdownTotalMs || 10000);
+        const remainingMs = Math.max(0, flightStartTime - accurateServerNow);
+        const timeLeft = Number((remainingMs / 1000).toFixed(1));
+        setCountdown(timeLeft);
+        setMultiplier(1.0);
       }
     }, 35);
 
@@ -228,6 +233,20 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
   }, []);
 
   const isInputsDisabled = gameState !== "PREPARING" || isBetPlaced;
+
+  if (!isReady) {
+    return (
+      <div className="w-full h-[480px] rounded-3xl bg-[#090d18] border border-slate-800/90 flex flex-col items-center justify-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center animate-pulse">
+          <History className="w-7 h-7 text-amber-400 animate-spin" />
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-sm font-black tracking-widest text-amber-400 uppercase">Synchronizing Live Stadium...</p>
+          <p className="text-xs text-slate-400">Connecting to authoritative multiplayer match arena</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col space-y-3">

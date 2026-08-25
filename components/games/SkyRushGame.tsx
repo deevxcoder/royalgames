@@ -82,6 +82,8 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
   const [crashMultiplier, setCrashMultiplier] = useState<number>(2.45);
   const [flightHistory, setFlightHistory] = useState<number[]>([1.84, 3.22, 1.12, 14.8, 2.05, 5.6, 1.45, 24.5, 1.02]);
 
+  const [isReady, setIsReady] = useState(false);
+
   // Dual Bet Panels
   const [panel1, setPanel1] = useState<BetPanelState>({
     amount: 50,
@@ -106,9 +108,6 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
   const [cashoutToasts, setCashoutToasts] = useState<CashoutToast[]>([]);
   const [cashoutEvents, setCashoutEvents] = useState<JumpPassengerEvent[]>([]);
 
-  const gameLoopRef = useRef<any>(null);
-  const countdownIntervalRef = useRef<any>(null);
-  const passengerEntryIntervalRef = useRef<any>(null);
   const plannedPassengersRef = useRef<Passenger[]>([]);
 
   // Synchronized state refs for rock-solid interval execution
@@ -199,7 +198,9 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
     const pollServerState = async () => {
       try {
         const fetchStart = Date.now();
-        const res = await fetch("/api/studio/multiplayer/state?game=royal_skyrush");
+        const res = await fetch("/api/studio/multiplayer/state?game=royal_skyrush&_t=" + fetchStart, {
+          cache: "no-store",
+        });
         const data = await res.json();
         const fetchEnd = Date.now();
         if (!isMounted || !data.success) return;
@@ -210,6 +211,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
         serverOffsetRef.current = estimatedServerNow - fetchEnd;
 
         serverStateRef.current = data;
+        setIsReady(true);
 
         // Check for round / phase changes
         const isNewRound = currentRoundIdRef.current !== data.roundId;
@@ -363,10 +365,11 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
           triggerCashout(2, p2.autoCashoutMult);
         }
       } else if (serverState.phase === "COUNTDOWN") {
-        const elapsedInPhase = Math.max(0, accurateServerNow - serverState.phaseStartTime);
-        const totalDuration = serverState.countdownTotalMs || 10000;
-        const timeLeft = Math.max(0, (totalDuration - elapsedInPhase) / 1000);
-        setCountdown(Number(timeLeft.toFixed(1)));
+        const flightStartTime = serverState.phaseStartTime + (serverState.countdownTotalMs || 10000);
+        const remainingMs = Math.max(0, flightStartTime - accurateServerNow);
+        const timeLeft = Number((remainingMs / 1000).toFixed(1));
+        setCountdown(timeLeft);
+        setMultiplier(1.0);
       }
     }, 35);
 
@@ -454,6 +457,20 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
   const cashedCount = livePlayers.filter((p) => p.cashedOutAt !== null).length;
   const isPanel1InputsDisabled = gameState !== "COUNTDOWN" || panel1.isBetPlaced;
   const isPanel2InputsDisabled = gameState !== "COUNTDOWN" || panel2.isBetPlaced;
+
+  if (!isReady) {
+    return (
+      <div className="w-full h-[480px] rounded-3xl bg-[#090d18] border border-slate-800/90 flex flex-col items-center justify-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center animate-pulse">
+          <Plane className="w-7 h-7 text-amber-400 animate-bounce" />
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-sm font-black tracking-widest text-amber-400 uppercase">Synchronizing with Royal RGS Engine...</p>
+          <p className="text-xs text-slate-400">Connecting to authoritative multiplayer crash arena</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col space-y-3">
