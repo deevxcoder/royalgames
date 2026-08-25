@@ -173,7 +173,7 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
           triggerCashout(autoCashoutMultRef.current);
         }
       } else if (serverState.phase === "COUNTDOWN") {
-        const flightStartTime = serverState.phaseStartTime + (serverState.countdownTotalMs || 10000);
+        const flightStartTime = serverState.flightStart || (serverState.phaseStartTime + (serverState.countdownTotalMs || 10000));
         const remainingMs = Math.max(0, flightStartTime - accurateServerNow);
         const timeLeft = Number((remainingMs / 1000).toFixed(1));
         setCountdown(timeLeft);

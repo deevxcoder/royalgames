@@ -530,7 +530,7 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         ctx.save();
         ctx.translate(width / 2, height / 2);
 
-        const progress = countdown / 4.0;
+        const progress = Math.max(0, Math.min(1.0, countdown / 10.0));
         ctx.beginPath();
         ctx.arc(0, 0, 52, -Math.PI / 2, -Math.PI / 2 + (1 - progress) * Math.PI * 2, false);
         ctx.strokeStyle = "#f59e0b";

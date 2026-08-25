@@ -16,6 +16,9 @@ export interface GlobalCrashState {
   countdownTotalMs: number;
   crashedTotalMs: number;
   flightDurationMs: number;
+  flightStart: number;
+  crashTime: number;
+  crashedEndTime: number;
   history: number[];
 }
 
@@ -70,11 +73,11 @@ export function calculateAscentMultiplier(elapsedSeconds: number): number {
 
 // Exact mathematical inverse: calculate flight duration in seconds for a given crash multiplier
 export function calculateFlightDurationSeconds(targetMultiplier: number): number {
-  if (targetMultiplier <= 1.0) return 0.1;
+  if (targetMultiplier <= 1.0) return 1.8;
   const lnM = Math.log(Math.max(1.0001, targetMultiplier));
   const inner = lnM / 0.065;
   const elapsed = Math.pow(inner, 0.8) / 1.5;
-  return Math.max(0.1, Number(elapsed.toFixed(3)));
+  return Math.max(1.8, Number(elapsed.toFixed(3)));
 }
 
 // Global in-memory singleton to persist state across hot-reloads and API calls
@@ -198,6 +201,9 @@ export function tickAndGetState(gameUid: string): GlobalCrashState {
     countdownTotalMs: COUNTDOWN_DURATION_MS,
     crashedTotalMs: CRASHED_DURATION_MS,
     flightDurationMs: state.flightDurationMs,
+    flightStart: state.flightStart,
+    crashTime: state.crashTime,
+    crashedEndTime: state.crashedEndTime,
     history: state.history,
   };
 }

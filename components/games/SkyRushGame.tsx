@@ -221,6 +221,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
           currentRoundIdRef.current = data.roundId;
           const planned = createPlannedPassengers(data.roundId, data.crashMultiplier || 2.0);
           plannedPassengersRef.current = planned;
+          setLivePlayers(planned);
         }
 
         if (isNewRound || isNewPhase) {
@@ -240,7 +241,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
             if (data.history) {
               setFlightHistory(data.history.slice(0, 12));
             }
-            setLivePlayers(plannedPassengersRef.current.slice(0, Math.min(plannedPassengersRef.current.length, 12)));
+            setLivePlayers(plannedPassengersRef.current);
           } else if (data.phase === "FLYING") {
             setGameState("FLYING");
             setCrashMultiplier(data.crashMultiplier || 2.0);
@@ -365,7 +366,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
           triggerCashout(2, p2.autoCashoutMult);
         }
       } else if (serverState.phase === "COUNTDOWN") {
-        const flightStartTime = serverState.phaseStartTime + (serverState.countdownTotalMs || 10000);
+        const flightStartTime = serverState.flightStart || (serverState.phaseStartTime + (serverState.countdownTotalMs || 10000));
         const remainingMs = Math.max(0, flightStartTime - accurateServerNow);
         const timeLeft = Number((remainingMs / 1000).toFixed(1));
         setCountdown(timeLeft);
