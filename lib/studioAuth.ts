@@ -51,6 +51,10 @@ export interface StudioAuthResult {
   tokenRecord?: any;
 }
 
+// In-memory token verification cache to prevent connection pool exhaustion on Supabase
+const studioTokenCache = new Map<string, { tokenRecord: any; timestamp: number }>();
+const STUDIO_TOKEN_CACHE_TTL_MS = 30000; // 30 seconds cache
+
 export async function authenticateStudioRequest(req: NextRequest): Promise<StudioAuthResult> {
   const authHeader = req.headers.get("authorization");
   const secretHeader = req.headers.get("x-secret-key");
@@ -69,11 +73,23 @@ export async function authenticateStudioRequest(req: NextRequest): Promise<Studi
     return { valid: false, statusCode: 401, error: "Missing Studio API Token in Authorization header or query param" };
   }
 
-  // Find API token in DB
-  const tokenRecord = await db.apiToken.findUnique({
-    where: { token: tokenStr },
-    include: { operator: true },
-  });
+  // Check in-memory cache first
+  const now = Date.now();
+  const cached = studioTokenCache.get(tokenStr);
+  let tokenRecord: any = null;
+
+  if (cached && now - cached.timestamp < STUDIO_TOKEN_CACHE_TTL_MS) {
+    tokenRecord = cached.tokenRecord;
+  } else {
+    tokenRecord = await db.apiToken.findUnique({
+      where: { token: tokenStr },
+      include: { operator: true },
+    });
+
+    if (tokenRecord) {
+      studioTokenCache.set(tokenStr, { tokenRecord, timestamp: now });
+    }
+  }
 
   if (!tokenRecord || !tokenRecord.isLive) {
     return { valid: false, statusCode: 401, error: "Invalid or deactivated Studio API Token" };
@@ -92,7 +108,7 @@ export async function authenticateStudioRequest(req: NextRequest): Promise<Studi
 
   // IP Whitelist Check (if configured)
   if (tokenRecord.ipWhitelist) {
-    const allowedIps = tokenRecord.ipWhitelist.split(",").map((ip) => ip.trim());
+    const allowedIps = tokenRecord.ipWhitelist.split(",").map((ip: string) => ip.trim());
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
