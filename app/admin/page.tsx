@@ -33,7 +33,15 @@ import {
   XCircle,
   X,
   Send,
+  Menu,
+  ChevronRight,
+  Circle,
+  BarChart3,
+  Download,
+  Calendar,
+  Filter,
 } from "lucide-react";
+import { STUDIO_GAMES } from "@/lib/gamesCatalog";
 
 export default function StudioAdminPortal() {
   const [authChecking, setAuthChecking] = useState(true);
@@ -43,8 +51,9 @@ export default function StudioAdminPortal() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // Tabs: overview, clients, deposits, games, rounds, docs
-  const [activeTab, setActiveTab] = useState<"overview" | "clients" | "deposits" | "games" | "rounds" | "docs">("clients");
+  // Tabs: overview, clients, deposits, rounds, docs, reports, rtp
+  const [activeTab, setActiveTab] = useState<"overview" | "clients" | "deposits" | "rounds" | "docs" | "reports" | "rtp">("clients");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // State
   const [clients, setClients] = useState<any[]>([]);
@@ -52,6 +61,21 @@ export default function StudioAdminPortal() {
   const [rounds, setRounds] = useState<any[]>([]);
   const [deposits, setDeposits] = useState<any[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
+
+  // Reports State
+  const [reportData, setReportData] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [selectedReportOperator, setSelectedReportOperator] = useState<string>("all");
+  const [selectedReportDateRange, setSelectedReportDateRange] = useState<string>("all");
+  const [selectedReportGame, setSelectedReportGame] = useState<string>("all");
+
+  // RTP & House Edge Settings State
+  const [rtpSettings, setRtpSettings] = useState<any>(null);
+  const [rtpLoading, setRtpLoading] = useState(false);
+  const [globalRtpInput, setGlobalRtpInput] = useState<number>(96.5);
+  const [gameRtpInputs, setGameRtpInputs] = useState<Record<string, number>>({});
+  const [savingRtp, setSavingRtp] = useState(false);
+  const [rtpSuccessMsg, setRtpSuccessMsg] = useState<string | null>(null);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [revealedSecrets, setRevealedSecrets] = useState<{ [id: string]: boolean }>({});
 
@@ -149,9 +173,141 @@ export default function StudioAdminPortal() {
     }
   }, [adminUser]);
 
+  // Fetch Reports
+  const fetchReports = useCallback(async () => {
+    if (!adminUser) return;
+    try {
+      setReportLoading(true);
+      const params = new URLSearchParams();
+      if (selectedReportOperator) params.set("operatorId", selectedReportOperator);
+      if (selectedReportDateRange) params.set("dateRange", selectedReportDateRange);
+      if (selectedReportGame) params.set("gameUid", selectedReportGame);
+
+      const res = await fetch(`/api/admin/reports?${params.toString()}`);
+      const data = await res.json();
+      if (data.success) {
+        setReportData(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [adminUser, selectedReportOperator, selectedReportDateRange, selectedReportGame]);
+
+  useEffect(() => {
+    if (adminUser) {
+      fetchReports();
+    }
+  }, [adminUser, fetchReports]);
+
+  // Fetch RTP Settings
+  const fetchRtpSettings = useCallback(async () => {
+    if (!adminUser) return;
+    try {
+      setRtpLoading(true);
+      const res = await fetch("/api/admin/rtp-settings");
+      const data = await res.json();
+      if (data.success) {
+        setRtpSettings(data);
+        setGlobalRtpInput(data.globalRtp);
+        const map: Record<string, number> = {};
+        data.games.forEach((g: any) => {
+          map[g.gameUid] = g.liveRtp;
+        });
+        setGameRtpInputs(map);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRtpLoading(false);
+    }
+  }, [adminUser]);
+
+  useEffect(() => {
+    if (adminUser) {
+      fetchRtpSettings();
+    }
+  }, [adminUser, fetchRtpSettings]);
+
+  const handleApplyGlobalRtp = async () => {
+    try {
+      setSavingRtp(true);
+      setRtpSuccessMsg(null);
+      const res = await fetch("/api/admin/rtp-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "SET_GLOBAL_ALL", globalRtp: globalRtpInput }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRtpSuccessMsg(
+          `Global RTP of ${globalRtpInput}% (Casino Margin: ${(100 - globalRtpInput).toFixed(2)}%) applied to all 10 games!`
+        );
+        fetchRtpSettings();
+        setTimeout(() => setRtpSuccessMsg(null), 4000);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingRtp(false);
+    }
+  };
+
+  const handleSaveSingleGameRtp = async (gameUid: string) => {
+    try {
+      setSavingRtp(true);
+      setRtpSuccessMsg(null);
+      const targetRtp = gameRtpInputs[gameUid] || 96.5;
+      const res = await fetch("/api/admin/rtp-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "SET_SINGLE_GAME", gameUid, rtp: targetRtp }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRtpSuccessMsg(
+          `Game RTP updated to ${targetRtp}% (House Edge: ${(100 - targetRtp).toFixed(2)}%) successfully!`
+        );
+        fetchRtpSettings();
+        setTimeout(() => setRtpSuccessMsg(null), 4000);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingRtp(false);
+    }
+  };
+
+  // Export CSV
+  const exportReportCSV = () => {
+    if (!reportData?.operatorBreakdown) return;
+    const headers =
+      "Operator Name,Currency,Prepaid Balance,GGR Rate (%),Total Rounds,Active Players,Turnover (INR),Payout (INR),Net GGR (INR),Studio Revenue Share (INR),Hold Margin (%)\n";
+    const rows = reportData.operatorBreakdown
+      .map(
+        (o: any) =>
+          `"${o.name}","${o.currency}",${o.balance},${o.ggrRate}%,${o.roundsCount},${o.playersCount},${o.turnover},${o.payout},${o.ggr},${o.studioFee},${o.margin}%`
+      )
+      .join("\n");
+
+    const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Royal_Games_Report_${selectedReportOperator}_${selectedReportDateRange}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   useEffect(() => {
     if (adminUser) {
       fetchData();
+      const interval = setInterval(() => {
+        fetchData();
+      }, 4000);
+      return () => clearInterval(interval);
     }
   }, [adminUser, fetchData]);
 
@@ -363,7 +519,7 @@ export default function StudioAdminPortal() {
         },
         body: JSON.stringify({
           user_id: testerPlayerId || "player_demo_9921",
-          game_uid: testerGameUid || "royal_coinflip",
+          game_uid: testerGameUid || "royal_skyrush",
           balance: Number(testerBalance) || 1500,
           currency: testerCurrency || "INR",
           callback_url: activeClient?.callbackUrl || "http://localhost:3001/api/v1/round/resolve",
@@ -466,95 +622,264 @@ export default function StudioAdminPortal() {
   }
 
   // Authenticated Portal Dashboard
+  const pendingDepositsCount = deposits.filter((d: any) => d.status === "PENDING").length;
+
+  const navItems = [
+    {
+      group: "OPERATOR MANAGEMENT",
+      items: [
+        { id: "clients", label: "B2B Clients & Keys", desc: "API tokens & IP whitelist", icon: Key, badge: clients.length ? `${clients.length}` : null, badgeColor: "bg-slate-800 text-amber-400" },
+        {
+          id: "deposits",
+          label: "Deposit Approvals",
+          desc: "Prepaid GGR recharges",
+          icon: Wallet,
+          badge: pendingDepositsCount > 0 ? `${pendingDepositsCount} PENDING` : null,
+          badgeColor: "bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse",
+        },
+        { id: "reports", label: "Client & GGR Reports", desc: "Operator financial breakdown", icon: BarChart3, badge: "PRO", badgeColor: "bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono" },
+        { id: "overview", label: "Studio Overview", desc: "Turnover, GGR & metrics", icon: Activity, badge: null },
+      ],
+    },
+    {
+      group: "ENGINE & AUDIT STREAM",
+      items: [
+        { id: "rtp", label: "Game RTP & GGR Settings", desc: "House edge & hold margin control", icon: Sliders, badge: "MASTER", badgeColor: "bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono" },
+        { id: "rounds", label: "Round Audit Ledger", desc: "Real-time round telemetry", icon: Layers, badge: "LIVE", badgeColor: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono" },
+        { id: "docs", label: "API Integration Docs", desc: "REST specs & cURL SDKs", icon: Globe, badge: null },
+      ],
+    },
+  ];
+
+  const currentTabLabel =
+    activeTab === "clients"
+      ? "B2B Clients & API Keys"
+      : activeTab === "deposits"
+      ? "Deposit Approvals"
+      : activeTab === "reports"
+      ? "Client & Aggregator GGR Reports"
+      : activeTab === "rtp"
+      ? "Game RTP & GGR Margin Control"
+      : activeTab === "overview"
+      ? "Studio Overview & Metrics"
+      : activeTab === "rounds"
+      ? "Round Audit Stream Ledger"
+      : "B2B API Integration Documentation";
+
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
-      {/* Top Navbar */}
-      <header className="h-16 border-b border-slate-800/80 bg-[#0c101a]/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-black shadow-lg shadow-amber-500/20">
-              <Gamepad2 className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-white text-base tracking-tight">ROYAL GAMES STUDIO</span>
-                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                  RGS ADMIN
-                </span>
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex font-sans selection:bg-amber-500 selection:text-black">
+      {/* Mobile Drawer Backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Left Sidebar (Enterprise Grade) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#090d18] border-r border-slate-800/80 flex flex-col justify-between transition-transform duration-200 lg:static lg:translate-x-0 ${
+          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex flex-col h-full">
+          {/* Studio Brand Header */}
+          <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 p-[2px] shadow-xl shadow-amber-500/20 flex items-center justify-center">
+                <div className="w-full h-full bg-[#07090e] rounded-[14px] flex items-center justify-center text-xl">
+                  👑
+                </div>
               </div>
-              <p className="text-[11px] text-gray-400 leading-none">B2B Game Studio & API Gateway</p>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-sm font-black text-white tracking-wider">ROYAL GAMES</h1>
+                  <span className="text-[9px] font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.2 rounded-md">
+                    RGS
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-400 font-medium">B2B Master Admin Engine</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setMobileSidebarOpen(false)}
+              className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Quick Engine Telemetry Strip */}
+          <div className="px-5 py-3 bg-[#06080e]/60 border-b border-slate-800/60 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              <span className="text-[11px] font-mono font-bold text-emerald-400">ONLINE</span>
+            </div>
+            <span className="text-[10px] font-mono text-gray-400">
+              {clients.length} Clients • {STUDIO_GAMES.length} HTML5 Games
+            </span>
+          </div>
+
+          {/* Nav Links */}
+          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+            {navItems.map((group, gIdx) => (
+              <div key={gIdx} className="space-y-1.5">
+                <div className="px-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono">
+                  {group.group}
+                </div>
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setActiveTab(item.id as any);
+                          setMobileSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left transition-all group cursor-pointer ${
+                          isActive
+                            ? "bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-extrabold shadow-lg shadow-amber-500/20"
+                            : "text-gray-300 hover:text-white hover:bg-slate-800/60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon
+                            className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
+                              isActive ? "text-black stroke-[2.5]" : "text-amber-400"
+                            }`}
+                          />
+                          <div className="truncate">
+                            <div className="text-xs font-bold leading-tight">{item.label}</div>
+                            <div
+                              className={`text-[10px] leading-tight truncate ${
+                                isActive ? "text-black/70 font-semibold" : "text-gray-500"
+                              }`}
+                            >
+                              {item.desc}
+                            </div>
+                          </div>
+                        </div>
+
+                        {item.badge && (
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-md font-mono shrink-0 ml-2 ${
+                              isActive ? "bg-black/20 text-black border border-black/30" : item.badgeColor
+                            }`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Direct Link Section */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+              <div className="px-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono">
+                EXTERNAL LINK
+              </div>
+              <Link
+                href="/"
+                target="_blank"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-300 hover:text-white hover:bg-slate-800/60 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <Play className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <div>
+                    <div className="text-xs font-bold text-white">Live Game Suite</div>
+                    <div className="text-[10px] text-gray-500">Play full HTML5 catalog</div>
+                  </div>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-gray-500 group-hover:text-amber-400" />
+              </Link>
             </div>
           </div>
 
-          {/* Tab Navigation */}
-          {(() => {
-            const pendingDepositsCount = deposits.filter((d: any) => d.status === "PENDING").length;
-            return (
-              <nav className="hidden md:flex items-center gap-1 ml-8 bg-[#07090e] p-1 rounded-xl border border-slate-800">
-                {[
-                  { id: "clients", label: "B2B Clients & API Keys", icon: Key },
-                  {
-                    id: "deposits",
-                    label: `Deposit Approvals${pendingDepositsCount > 0 ? ` (${pendingDepositsCount})` : ""}`,
-                    icon: Wallet,
-                  },
-                  { id: "overview", label: "Studio Overview", icon: Activity },
-                  { id: "games", label: "Native Games Suite", icon: Gamepad2 },
-                  { id: "rounds", label: "Round Audit Ledger", icon: Layers },
-                  { id: "docs", label: "B2B API Integration Docs", icon: Globe },
-                ].map((tab) => {
-                  const Icon = tab.icon;
-                  const active = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as any)}
-                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        active
-                          ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
-                          : "text-gray-400 hover:text-white hover:bg-slate-800/60"
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            );
-          })()}
+          {/* Admin User Footer Card */}
+          <div className="p-4 border-t border-slate-800/80 bg-[#07090e]/80">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-sm font-black text-amber-400">
+                  👑
+                </div>
+                <div className="truncate">
+                  <div className="text-xs font-bold text-white truncate">admin</div>
+                  <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Superadmin
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-xl bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/30 text-rose-300 hover:text-white transition-colors cursor-pointer"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
+      </aside>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchData}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-gray-300 hover:text-white transition-colors"
-            title="Refresh Data"
-          >
-            <RefreshCw className={`w-4 h-4 ${loadingClients ? "animate-spin text-amber-400" : ""}`} />
-          </button>
+      {/* Main Content Area (Right of Sidebar) */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        {/* Top App Header */}
+        <header className="h-16 border-b border-slate-800/80 bg-[#090d18]/80 backdrop-blur-md px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl bg-[#06080e] border border-slate-800 text-gray-300 hover:text-white"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
 
-          <Link
-            href="/"
-            target="_blank"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-xs font-bold text-amber-300 hover:text-amber-200 transition-colors"
-          >
-            <span>Live Showcase</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </Link>
+            <div>
+              <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+                <span>RGS Admin</span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+                <span className="text-amber-400 font-bold">{currentTabLabel}</span>
+              </div>
+              <h2 className="text-sm sm:text-base font-black text-white tracking-tight leading-tight">
+                {currentTabLabel}
+              </h2>
+            </div>
+          </div>
 
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/30 text-rose-300 text-xs font-bold transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
-          </button>
-        </div>
-      </header>
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Live Telemetry Pulse */}
+            <div className="hidden sm:flex items-center gap-2 bg-[#06080e] border border-emerald-500/20 px-3 py-1.5 rounded-xl text-xs font-mono">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-emerald-300 font-bold text-[11px]">Live Sync (4s)</span>
+            </div>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+            <button
+              onClick={fetchData}
+              className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-gray-300 hover:text-white transition-colors cursor-pointer"
+              title="Refresh Data"
+            >
+              <RefreshCw className={`w-4 h-4 ${loadingClients ? "animate-spin text-amber-400" : ""}`} />
+            </button>
+
+            <Link
+              href="/"
+              target="_blank"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/30 hover:border-amber-400 text-xs font-bold text-amber-300 hover:text-amber-200 transition-colors"
+            >
+              <span>Showcase</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </header>
+
+        {/* Content Body */}
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         {/* TAB 1: B2B CLIENTS & API KEYS */}
         {activeTab === "clients" && (
           <div className="space-y-6">
@@ -927,88 +1252,6 @@ export default function StudioAdminPortal() {
           </div>
         )}
 
-        {/* TAB 3: NATIVE GAMES */}
-        {activeTab === "games" && (
-          <div className="space-y-6">
-            <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-6 shadow-lg">
-              <h3 className="text-base font-black text-white flex items-center gap-2">
-                <Gamepad2 className="w-5 h-5 text-amber-400" />
-                <span>Royal Studio 6-Game Proprietary Suite</span>
-              </h3>
-              <p className="text-xs text-gray-400 mt-1">
-                All games run on local Remote Gaming Server with 60FPS physics, procedural sound synthesizers, and Provably Fair RNG mathematics.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                {[
-                  {
-                    uid: "royal_coinflip",
-                    name: "Coin Flip Royale",
-                    cat: "Casual / Instant Win",
-                    rtp: "98.5%",
-                    max: "100x",
-                    desc: "3D physics coin flip with streak multipliers.",
-                  },
-                  {
-                    uid: "royal_andarbahar",
-                    name: "Andar Bahar Live",
-                    cat: "Table / Live Indian",
-                    rtp: "98.0%",
-                    max: "25x",
-                    desc: "Classic Indian felt table with Joker opening deal.",
-                  },
-                  {
-                    uid: "royal_chickencross",
-                    name: "Chicken Road Cross",
-                    cat: "Crash / Stepper",
-                    rtp: "97.8%",
-                    max: "250x",
-                    desc: "Multi-lane traffic road stepper crash game.",
-                  },
-                  {
-                    uid: "royal_aviator",
-                    name: "Aviator Royale Crash",
-                    cat: "Crash / Flash",
-                    rtp: "97.0%",
-                    max: "1000x",
-                    desc: "High-adrenaline ascending multiplier curve.",
-                  },
-                  {
-                    uid: "royal_mines",
-                    name: "Mines Gold",
-                    cat: "Originals / Instant",
-                    rtp: "98.2%",
-                    max: "500x",
-                    desc: "5x5 minefield grid cashout game.",
-                  },
-                  {
-                    uid: "royal_roulette",
-                    name: "European Roulette",
-                    cat: "Table / Wheel",
-                    rtp: "97.3%",
-                    max: "36x",
-                    desc: "37-pocket European spinning wheel.",
-                  },
-                ].map((g) => (
-                  <div key={g.uid} className="bg-[#080a10] border border-slate-800 rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono text-amber-400 font-bold">{g.uid}</span>
-                      <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-bold">
-                        ACTIVE
-                      </span>
-                    </div>
-                    <h4 className="text-base font-black text-white">{g.name}</h4>
-                    <p className="text-xs text-gray-400 leading-relaxed">{g.desc}</p>
-                    <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-mono">
-                      <span className="text-gray-400">RTP: {g.rtp}</span>
-                      <span className="text-purple-400 font-bold">Max: {g.max}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* TAB 4: ROUNDS AUDIT */}
         {activeTab === "rounds" && (
@@ -1112,7 +1355,7 @@ Generates an authenticated game session launch URL.
 \`\`\`json
 {
   "user_id": "player_12345",
-  "game_uid": "royal_coinflip",
+  "game_uid": "royal_skyrush",
   "balance": 1500.00,
   "currency": "INR",
   "callback_url": "https://your-casino.com/api/callback",
@@ -1124,7 +1367,7 @@ Generates an authenticated game session launch URL.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | \`user_id\` | string | Yes | Unique player ID on your casino database |
-| \`game_uid\` | string | Yes | Game identifier (e.g. royal_coinflip, royal_aviator) |
+| \`game_uid\` | string | Yes | Game identifier (e.g. royal_skyrush, royal_cricketblast) |
 | \`balance\` | number | Yes | Current real-money wallet balance |
 | \`currency\` | string | No | 3-letter currency code (Default: INR) |
 | \`callback_url\` | string | Yes | Your casino webhook endpoint for settlement |
@@ -1138,8 +1381,8 @@ Generates an authenticated game session launch URL.
   "msg": "Royal Studio game session created successfully",
   "data": {
     "session_id": "sess_39c1b827e01...",
-    "game_uid": "royal_coinflip",
-    "game_name": "Coin Flip Royale",
+    "game_uid": "royal_skyrush",
+    "game_name": "Sky Rush",
     "provider": "Royal Games Studio",
     "launch_url": "https://studio.yourdomain.com/play/sess_39c1b827e01...?token=eyJhbGciOi...",
     "expires_at": "2026-08-21T02:30:00.000Z"
@@ -1158,7 +1401,7 @@ curl -X POST https://studio.yourdomain.com/api/v1/launch \\
   -H "Content-Type: application/json" \\
   -d '{
     "user_id": "player_12345",
-    "game_uid": "royal_coinflip",
+    "game_uid": "royal_skyrush",
     "balance": 1500.00,
     "currency": "INR",
     "callback_url": "https://your-casino.com/api/callback",
@@ -1172,7 +1415,7 @@ import axios from "axios";
 
 const res = await axios.post("https://studio.yourdomain.com/api/v1/launch", {
   user_id: "player_12345",
-  game_uid: "royal_coinflip",
+  game_uid: "royal_skyrush",
   balance: 1500.00,
   currency: "INR",
   callback_url: "https://your-casino.com/api/callback",
@@ -1184,7 +1427,7 @@ const res = await axios.post("https://studio.yourdomain.com/api/v1/launch", {
   }
 });
 
-console.log("Launch URL:", res.data.data.launch_url);
+console.log("Game URL:", res.data.data.launch_url);
 \`\`\`
 
 ### PHP:
@@ -1192,7 +1435,7 @@ console.log("Launch URL:", res.data.data.launch_url);
 <?php
 $payload = json_encode([
     "user_id" => "player_12345",
-    "game_uid" => "royal_coinflip",
+    "game_uid" => "royal_skyrush",
     "balance" => 1500.00,
     "currency" => "INR",
     "callback_url" => "https://your-casino.com/api/callback",
@@ -1223,7 +1466,7 @@ headers = {
 }
 payload = {
     "user_id": "player_12345",
-    "game_uid": "royal_coinflip",
+    "game_uid": "royal_skyrush",
     "balance": 1500.00,
     "currency": "INR",
     "callback_url": "https://your-casino.com/api/callback",
@@ -1245,11 +1488,11 @@ Studio notifies your casino on round completion.
   "serial_number": "SN_ROYAL_1724183921098_982",
   "session_id": "sess_39c1b827e01...",
   "member_account": "player_12345",
-  "game_uid": "royal_coinflip",
-  "game_name": "Coin Flip Royale",
+  "game_uid": "royal_skyrush",
+  "game_name": "Sky Rush",
   "bet_amount": 100.00,
-  "win_amount": 196.00,
-  "new_balance": 1596.00,
+  "win_amount": 250.00,
+  "new_balance": 1650.00,
   "timestamp": 1724183921098
 }
 \`\`\`
@@ -1416,7 +1659,7 @@ Returns active games suite:
                         <td className="py-2.5 px-3 text-amber-400 font-bold">game_uid</td>
                         <td className="py-2.5 px-3 text-purple-400">string</td>
                         <td className="py-2.5 px-3 text-emerald-400">YES</td>
-                        <td className="py-2.5 px-3 font-sans">Identifier e.g. <code className="text-amber-400">royal_coinflip</code>, <code className="text-amber-400">royal_aviator</code>.</td>
+                        <td className="py-2.5 px-3 font-sans">Identifier e.g. <code className="text-amber-400">royal_skyrush</code>, <code className="text-amber-400">royal_cricketblast</code>.</td>
                       </tr>
                       <tr>
                         <td className="py-2.5 px-3 text-amber-400 font-bold">balance</td>
@@ -1473,10 +1716,10 @@ Returns active games suite:
                     onClick={() => {
                       const token = clients[0]?.tokens[0]?.token || "rgs_live_YOUR_STUDIO_API_TOKEN";
                       const snips: Record<string, string> = {
-                        curl: `curl -X POST https://studio.yourdomain.com/api/v1/launch \\\n  -H "Authorization: Bearer ${token}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "user_id": "player_12345",\n    "game_uid": "royal_coinflip",\n    "balance": 1500.00,\n    "currency": "INR",\n    "callback_url": "https://your-casino.com/api/callback",\n    "return_url": "https://your-casino.com/lobby"\n  }'`,
-                        node: `import axios from "axios";\n\nconst response = await axios.post("https://studio.yourdomain.com/api/v1/launch", {\n  user_id: "player_12345",\n  game_uid: "royal_coinflip",\n  balance: 1500.00,\n  currency: "INR",\n  callback_url: "https://your-casino.com/api/callback",\n  return_url: "https://your-casino.com/lobby"\n}, {\n  headers: {\n    "Authorization": "Bearer ${token}",\n    "Content-Type": "application/json"\n  }\n});\n\nconsole.log("Game URL:", response.data.data.launch_url);`,
-                        php: `<?php\n$payload = json_encode([\n    "user_id" => "player_12345",\n    "game_uid" => "royal_coinflip",\n    "balance" => 1500.00,\n    "currency" => "INR",\n    "callback_url" => "https://your-casino.com/api/callback",\n    "return_url" => "https://your-casino.com/lobby"\n]);\n\n$ch = curl_init("https://studio.yourdomain.com/api/v1/launch");\ncurl_setopt($ch, CURLOPT_RETURNTRANSFER, true);\ncurl_setopt($ch, CURLOPT_POST, true);\ncurl_setopt($ch, CURLOPT_HTTPHEADER, [\n    "Authorization: Bearer ${token}",\n    "Content-Type: application/json"\n]);\ncurl_setopt($ch, CURLOPT_POSTFIELDS, $payload);\n\n$res = json_decode(curl_exec($ch), true);\necho "Launch URL: " . $res["data"]["launch_url"];\n?>`,
-                        python: `import requests\n\nurl = "https://studio.yourdomain.com/api/v1/launch"\nheaders = {\n    "Authorization": "Bearer ${token}",\n    "Content-Type": "application/json"\n}\npayload = {\n    "user_id": "player_12345",\n    "game_uid": "royal_coinflip",\n    "balance": 1500.00,\n    "currency": "INR",\n    "callback_url": "https://your-casino.com/api/callback",\n    "return_url": "https://your-casino.com/lobby"\n}\n\nres = requests.post(url, json=payload, headers=headers).json()\nprint("Launch URL:", res["data"]["launch_url"])`,
+                        curl: `curl -X POST https://studio.yourdomain.com/api/v1/launch \\\n  -H "Authorization: Bearer ${token}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "user_id": "player_12345",\n    "game_uid": "royal_skyrush",\n    "balance": 1500.00,\n    "currency": "INR",\n    "callback_url": "https://your-casino.com/api/callback",\n    "return_url": "https://your-casino.com/lobby"\n  }'`,
+                        node: `import axios from "axios";\n\nconst response = await axios.post("https://studio.yourdomain.com/api/v1/launch", {\n  user_id: "player_12345",\n  game_uid: "royal_skyrush",\n  balance: 1500.00,\n  currency: "INR",\n  callback_url: "https://your-casino.com/api/callback",\n  return_url: "https://your-casino.com/lobby"\n}, {\n  headers: {\n    "Authorization": "Bearer ${token}",\n    "Content-Type": "application/json"\n  }\n});\n\nconsole.log("Game URL:", response.data.data.launch_url);`,
+                        php: `<?php\n$payload = json_encode([\n    "user_id" => "player_12345",\n    "game_uid" => "royal_skyrush",\n    "balance" => 1500.00,\n    "currency" => "INR",\n    "callback_url" => "https://your-casino.com/api/callback",\n    "return_url" => "https://your-casino.com/lobby"\n]);\n\n$ch = curl_init("https://studio.yourdomain.com/api/v1/launch");\ncurl_setopt($ch, CURLOPT_RETURNTRANSFER, true);\ncurl_setopt($ch, CURLOPT_POST, true);\ncurl_setopt($ch, CURLOPT_HTTPHEADER, [\n    "Authorization: Bearer ${token}",\n    "Content-Type: application/json"\n]);\ncurl_setopt($ch, CURLOPT_POSTFIELDS, $payload);\n\n$res = json_decode(curl_exec($ch), true);\necho "Launch URL: " . $res["data"]["launch_url"];\n?>`,
+                        python: `import requests\n\nurl = "https://studio.yourdomain.com/api/v1/launch"\nheaders = {\n    "Authorization": "Bearer ${token}",\n    "Content-Type": "application/json"\n}\npayload = {\n    "user_id": "player_12345",\n    "game_uid": "royal_skyrush",\n    "balance": 1500.00,\n    "currency": "INR",\n    "callback_url": "https://your-casino.com/api/callback",\n    "return_url": "https://your-casino.com/lobby"\n}\n\nres = requests.post(url, json=payload, headers=headers).json()\nprint("Launch URL:", res["data"]["launch_url"])`,
                       };
                       copyText(snips[docLang] || "", "launch_snip");
                     }}
@@ -1491,7 +1734,7 @@ Returns active games suite:
   -H "Content-Type: application/json" \\
   -d '{
     "user_id": "player_12345",
-    "game_uid": "royal_coinflip",
+    "game_uid": "royal_skyrush",
     "balance": 1500.00,
     "currency": "INR",
     "callback_url": "https://your-casino.com/api/callback",
@@ -1500,7 +1743,7 @@ Returns active games suite:
 
 const response = await axios.post("https://studio.yourdomain.com/api/v1/launch", {
   user_id: "player_12345",
-  game_uid: "royal_coinflip",
+  game_uid: "royal_skyrush",
   balance: 1500.00,
   currency: "INR",
   callback_url: "https://your-casino.com/api/callback",
@@ -1515,7 +1758,7 @@ const response = await axios.post("https://studio.yourdomain.com/api/v1/launch",
 console.log("Game URL:", response.data.data.launch_url);`}{docLang === "php" && `<?php
 $payload = json_encode([
     "user_id" => "player_12345",
-    "game_uid" => "royal_coinflip",
+    "game_uid" => "royal_skyrush",
     "balance" => 1500.00,
     "currency" => "INR",
     "callback_url" => "https://your-casino.com/api/callback",
@@ -1542,7 +1785,7 @@ headers = {
 }
 payload = {
     "user_id": "player_12345",
-    "game_uid": "royal_coinflip",
+    "game_uid": "royal_skyrush",
     "balance": 1500.00,
     "currency": "INR",
     "callback_url": "https://your-casino.com/api/callback",
@@ -1564,8 +1807,8 @@ print("Launch URL:", res["data"]["launch_url"])`}</pre>
   "msg": "Royal Studio game session created successfully",
   "data": {
     "session_id": "sess_39c1b827e01...",
-    "game_uid": "royal_coinflip",
-    "game_name": "Coin Flip Royale",
+    "game_uid": "royal_skyrush",
+    "game_name": "Sky Rush",
     "provider": "Royal Games Studio",
     "launch_url": "https://studio.yourdomain.com/play/sess_39c1b827e01...?token=eyJhbGciOi...",
     "expires_at": "2026-08-21T02:30:00.000Z"
@@ -1597,11 +1840,11 @@ print("Launch URL:", res["data"]["launch_url"])`}</pre>
   "serial_number": "SN_ROYAL_1724183921098_982",  // Unique Idempotency Key
   "session_id": "sess_39c1b827e01...",
   "member_account": "player_12345",
-  "game_uid": "royal_coinflip",
-  "game_name": "Coin Flip Royale",
+  "game_uid": "royal_skyrush",
+  "game_name": "Sky Rush",
   "bet_amount": 100.00,
-  "win_amount": 196.00,
-  "new_balance": 1596.00,
+  "win_amount": 250.00,
+  "new_balance": 1650.00,
   "timestamp": 1724183921098
 }`}</pre>
                 </div>
@@ -1731,25 +1974,19 @@ export async function POST(req: Request) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {[
-                  { uid: "royal_coinflip", name: "Coin Flip Royale", cat: "Originals", rtp: "98.0%", max: "100x" },
-                  { uid: "royal_andarbahar", name: "Andar Bahar Live", cat: "Indian Live Felt", rtp: "97.5%", max: "2.0x" },
-                  { uid: "royal_chickencross", name: "Chicken Road Cross", cat: "Crash / Stepper", rtp: "96.8%", max: "250x" },
-                  { uid: "royal_aviator", name: "Aviator Royale Crash", cat: "Crash / Flash", rtp: "97.0%", max: "1000x" },
-                  { uid: "royal_mines", name: "Mines Gold", cat: "Originals / Instant", rtp: "98.2%", max: "500x" },
-                  { uid: "royal_roulette", name: "European Roulette", cat: "Table / Wheel", rtp: "97.3%", max: "36x" },
-                ].map((g) => (
-                  <div key={g.uid} className="bg-[#080a10] border border-slate-800 rounded-xl p-3.5 space-y-2">
+                {STUDIO_GAMES.map((g) => (
+                  <div key={g.game_uid} className="bg-[#080a10] border border-slate-800 rounded-xl p-3.5 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono text-amber-400 font-bold">{g.uid}</span>
+                      <span className="text-xs font-mono text-amber-400 font-bold">{g.game_uid}</span>
                       <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold">
                         ACTIVE
                       </span>
                     </div>
                     <div className="text-sm font-bold text-white">{g.name}</div>
+                    <p className="text-[11px] text-gray-400 line-clamp-1">{g.category}</p>
                     <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 pt-2 border-t border-slate-800/80">
-                      <span>RTP: {g.rtp}</span>
-                      <span className="text-purple-400 font-bold">Max: {g.max}</span>
+                      <span>RTP: {g.rtp}%</span>
+                      <span className="text-purple-400 font-bold">Max: {g.max_multiplier}x</span>
                     </div>
                   </div>
                 ))}
@@ -1786,12 +2023,11 @@ export async function POST(req: Request) {
                     onChange={(e) => setTesterGameUid(e.target.value)}
                     className="w-full bg-[#07090e] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
                   >
-                    <option value="royal_coinflip">🪙 Coin Flip Royale (royal_coinflip)</option>
-                    <option value="royal_andarbahar">🎴 Andar Bahar Live (royal_andarbahar)</option>
-                    <option value="royal_chickencross">🐔 Chicken Road Cross (royal_chickencross)</option>
-                    <option value="royal_aviator">✈️ Aviator Royale Crash (royal_aviator)</option>
-                    <option value="royal_mines">💣 Mines Gold (royal_mines)</option>
-                    <option value="royal_roulette">🎡 European Roulette (royal_roulette)</option>
+                    {STUDIO_GAMES.map((g) => (
+                      <option key={g.game_uid} value={g.game_uid}>
+                        🎮 {g.name} ({g.game_uid})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1852,6 +2088,578 @@ export async function POST(req: Request) {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: CLIENT & AGGREGATOR GGR REPORTS */}
+        {activeTab === "reports" && (
+          <div className="space-y-6">
+            {/* Header & Multi-Filter Control Bar */}
+            <div className="bg-[#0b0f19] border border-amber-500/30 rounded-3xl p-6 shadow-2xl space-y-5">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black text-white flex items-center gap-2.5">
+                    <BarChart3 className="w-6 h-6 text-amber-400" />
+                    <span>Client & Aggregator Financial Reports</span>
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-1 max-w-2xl">
+                    Filter by specific B2B operator, date range, or game to analyze Gross Gaming Revenue (GGR), turnover, player payouts, and studio revenue share.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <button
+                    onClick={fetchReports}
+                    className="p-2.5 rounded-xl bg-[#07090e] border border-slate-700 hover:border-amber-400 text-gray-300 hover:text-white transition-colors cursor-pointer"
+                    title="Refresh Report Data"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${reportLoading ? "animate-spin text-amber-400" : ""}`} />
+                  </button>
+                  <button
+                    onClick={exportReportCSV}
+                    className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 stroke-[2.5]" />
+                    <span>Export CSV Report</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Controls Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800/80">
+                {/* 1. Client / Operator Selector */}
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Select Client / Aggregator</span>
+                  </label>
+                  <select
+                    value={selectedReportOperator}
+                    onChange={(e) => setSelectedReportOperator(e.target.value)}
+                    className="w-full bg-[#07090e] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                  >
+                    <option value="all">🏢 All Operators & Aggregators</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Date Range Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Time Window</span>
+                  </label>
+                  <div className="grid grid-cols-4 gap-1 bg-[#07090e] p-1 rounded-xl border border-slate-700">
+                    {[
+                      { id: "today", label: "Today" },
+                      { id: "7d", label: "7 Days" },
+                      { id: "30d", label: "30 Days" },
+                      { id: "all", label: "All Time" },
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        onClick={() => setSelectedReportDateRange(d.id)}
+                        className={`py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                          selectedReportDateRange === d.id
+                            ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
+                            : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Game Title Selector */}
+                <div>
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                    <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Game Filter</span>
+                  </label>
+                  <select
+                    value={selectedReportGame}
+                    onChange={(e) => setSelectedReportGame(e.target.value)}
+                    className="w-full bg-[#07090e] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                  >
+                    <option value="all">🎮 All 10 HTML5 Games</option>
+                    {STUDIO_GAMES.map((g) => (
+                      <option key={g.game_uid} value={g.game_uid}>
+                        {g.name} ({g.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* 6-Card Financial Metrics Strip */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Turnover */}
+              <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-4 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-gray-400">Total Turnover (Bets)</span>
+                <div className="text-lg font-black text-amber-400 font-mono truncate">
+                  ₹{(reportData?.summary?.totalTurnover || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
+                <span className="text-[9px] text-gray-500">Gross Wagers Placed</span>
+              </div>
+
+              {/* Total Payout */}
+              <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-4 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-gray-400">Player Winnings</span>
+                <div className="text-lg font-black text-purple-400 font-mono truncate">
+                  ₹{(reportData?.summary?.totalPayout || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
+                <span className="text-[9px] text-gray-500">Total Won by Users</span>
+              </div>
+
+              {/* Net GGR */}
+              <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-4 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-gray-400">Gross Gaming Rev (GGR)</span>
+                <div
+                  className={`text-lg font-black font-mono truncate ${
+                    (reportData?.summary?.totalGgr || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                  }`}
+                >
+                  {(reportData?.summary?.totalGgr || 0) >= 0 ? "+" : ""}₹
+                  {(reportData?.summary?.totalGgr || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
+                <span className="text-[9px] text-gray-500">
+                  Margin: {reportData?.summary?.holdMargin || 0}%
+                </span>
+              </div>
+
+              {/* Studio Revenue Share */}
+              <div className="bg-[#0b0f19] border border-amber-500/30 rounded-2xl p-4 space-y-1 bg-gradient-to-b from-amber-500/5 to-transparent">
+                <span className="text-[10px] uppercase font-bold text-amber-300">Studio Share (10%)</span>
+                <div className="text-lg font-black text-amber-400 font-mono truncate">
+                  ₹{(reportData?.summary?.totalStudioRevenue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
+                <span className="text-[9px] text-amber-400/70">Prepaid Deductions</span>
+              </div>
+
+              {/* Unique Players */}
+              <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-4 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-gray-400">Active Players</span>
+                <div className="text-lg font-black text-sky-400 font-mono">
+                  {reportData?.summary?.uniquePlayersCount || 0}
+                </div>
+                <span className="text-[9px] text-gray-500">Unique Player Accounts</span>
+              </div>
+
+              {/* Total Rounds */}
+              <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-4 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-gray-400">Rounds Resolved</span>
+                <div className="text-lg font-black text-slate-200 font-mono">
+                  {reportData?.summary?.totalRounds || 0}
+                </div>
+                <span className="text-[9px] text-gray-500">Audit Stream Events</span>
+              </div>
+            </div>
+
+            {/* Operator Financial Comparison Matrix Table */}
+            <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Key className="w-4 h-4 text-amber-400" />
+                    <span>B2B Client Financial Matrix & GGR Breakdown</span>
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Individual operator performance, active player counts, and billing metrics.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-xl">
+                  {reportData?.operatorBreakdown?.length || 0} Operators Listed
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono">
+                      <th className="py-3 px-3">Client / Aggregator</th>
+                      <th className="py-3 px-3">Prepaid Wallet</th>
+                      <th className="py-3 px-3">GGR Rate</th>
+                      <th className="py-3 px-3">Active Players</th>
+                      <th className="py-3 px-3">Rounds</th>
+                      <th className="py-3 px-3">Turnover (Bets)</th>
+                      <th className="py-3 px-3">Payouts (Wins)</th>
+                      <th className="py-3 px-3">Net GGR</th>
+                      <th className="py-3 px-3">Studio Fee</th>
+                      <th className="py-3 px-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
+                    {reportData?.operatorBreakdown?.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="py-8 text-center text-gray-500">
+                          No operator round records found for selected filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      reportData?.operatorBreakdown?.map((op: any) => (
+                        <tr key={op.operatorId} className="hover:bg-slate-900/60 transition-colors">
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-white text-xs">{op.name}</div>
+                            <div className="text-[10px] text-gray-500 font-mono truncate max-w-xs">{op.email}</div>
+                          </td>
+                          <td className="py-3 px-3 font-mono font-bold text-emerald-400">
+                            ₹{op.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-3 font-mono font-bold text-amber-400">{op.ggrRate}%</td>
+                          <td className="py-3 px-3 font-mono text-sky-300 font-bold">{op.playersCount}</td>
+                          <td className="py-3 px-3 font-mono text-slate-300">{op.roundsCount}</td>
+                          <td className="py-3 px-3 font-mono font-bold text-white">
+                            ₹{op.turnover.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-3 font-mono text-purple-300">
+                            ₹{op.payout.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td
+                            className={`py-3 px-3 font-mono font-black ${
+                              op.ggr >= 0 ? "text-emerald-400" : "text-rose-400"
+                            }`}
+                          >
+                            {op.ggr >= 0 ? "+" : ""}₹
+                            {op.ggr.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-3 font-mono font-bold text-amber-400">
+                            ₹{op.studioFee.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <span
+                              className={`text-[9px] px-2 py-0.5 rounded-full font-bold font-mono ${
+                                op.status === "ACTIVE"
+                                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                  : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                              }`}
+                            >
+                              {op.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 2-Column Split: Game Performance & Top Player Leaderboard */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column: Game Performance Breakdown */}
+              <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Gamepad2 className="w-4 h-4 text-purple-400" />
+                    <span>Game Distribution for Filter</span>
+                  </h3>
+                  <span className="text-xs text-gray-400 font-mono">Turnover & Payout</span>
+                </div>
+
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                  {reportData?.gameDistribution?.map((g: any) => (
+                    <div
+                      key={g.gameUid}
+                      className="bg-[#07090e] border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="text-xs font-bold text-white flex items-center gap-2">
+                          <span>{g.name}</span>
+                          <span className="text-[9px] bg-slate-800 text-gray-400 px-1.5 py-0.2 rounded font-mono">
+                            {g.category}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-500 font-mono">
+                          {g.rounds} Rounds • Configured RTP: {g.rtp}%
+                        </div>
+                      </div>
+
+                      <div className="text-right font-mono space-y-0.5">
+                        <div className="text-xs font-bold text-amber-400">
+                          ₹{g.turnover.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div
+                          className={`text-[10px] font-bold ${
+                            g.ggr >= 0 ? "text-emerald-400" : "text-rose-400"
+                          }`}
+                        >
+                          GGR: {g.ggr >= 0 ? "+" : ""}₹
+                          {g.ggr.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right Column: Player Leaderboard for Filter */}
+              <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-sky-400" />
+                    <span>Top Players Leaderboard</span>
+                  </h3>
+                  <span className="text-xs text-gray-400 font-mono">Wagers & Net P/L</span>
+                </div>
+
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                  {reportData?.topPlayers?.length === 0 ? (
+                    <div className="py-8 text-center text-gray-500 text-xs">No player activity found.</div>
+                  ) : (
+                    reportData?.topPlayers?.map((p: any, idx: number) => (
+                      <div
+                        key={p.userId}
+                        className="bg-[#07090e] border border-slate-800 rounded-2xl p-3 flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-xl bg-slate-800 flex items-center justify-center font-mono font-black text-xs text-amber-400">
+                            #{idx + 1}
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-white font-mono">{p.userId}</div>
+                            <div className="text-[10px] text-gray-500">{p.operatorName} • {p.rounds} Rounds</div>
+                          </div>
+                        </div>
+
+                        <div className="text-right font-mono space-y-0.5">
+                          <div className="text-xs font-bold text-slate-200">
+                            Bet: ₹{p.turnover.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </div>
+                          <div
+                            className={`text-[10px] font-bold ${
+                              p.netPnl >= 0 ? "text-emerald-400" : "text-rose-400"
+                            }`}
+                          >
+                            Player Net: {p.netPnl >= 0 ? "+" : ""}₹
+                            {p.netPnl.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: GAME RTP & GGR MARGIN SETTINGS */}
+        {activeTab === "rtp" && (
+          <div className="space-y-6">
+            {/* Success Toast */}
+            {rtpSuccessMsg && (
+              <div className="bg-emerald-500/10 border border-emerald-500/40 rounded-2xl p-4 flex items-center gap-3 text-emerald-300 font-bold text-xs animate-in fade-in slide-in-from-top-2 shadow-lg shadow-emerald-500/10">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                <span>{rtpSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* Master Studio RTP Hero Control Card */}
+            <div className="bg-[#0b0f19] border border-purple-500/40 rounded-3xl p-6 shadow-2xl space-y-6 relative overflow-hidden bg-gradient-to-br from-purple-500/10 via-transparent to-amber-500/5">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-md font-mono">
+                      Authoritative Math Control
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black text-white flex items-center gap-2.5">
+                    <Sliders className="w-6 h-6 text-purple-400" />
+                    <span>Master Studio RTP & House Edge Configuration</span>
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-1 max-w-2xl">
+                    Configure the global Return to Player (RTP) percentage across all 10 HTML5 games. The RNG algorithms dynamically adjust Pareto crash curves, mine safety odds, and multiplier distributions.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={fetchRtpSettings}
+                    className="p-2.5 rounded-xl bg-[#07090e] border border-slate-700 hover:border-purple-400 text-gray-300 hover:text-white transition-colors cursor-pointer"
+                    title="Refresh Settings"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${rtpLoading ? "animate-spin text-purple-400" : ""}`} />
+                  </button>
+                  <button
+                    onClick={handleApplyGlobalRtp}
+                    disabled={savingRtp}
+                    className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white font-extrabold px-5 py-2.5 rounded-xl text-xs shadow-lg shadow-purple-500/25 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {savingRtp ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    <span>Apply to All 10 Games</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Master RTP Slider & Live Margin Display */}
+              <div className="bg-[#07090e]/90 border border-slate-800 rounded-2xl p-6 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-gray-300 block mb-1">
+                      GLOBAL STUDIO RTP PERCENTAGE (PLAYER RETURN)
+                    </label>
+                    <span className="text-[11px] text-gray-500 font-mono">
+                      Recommended Industry Standard: 96.00% – 97.50%
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="80.0"
+                      max="99.5"
+                      value={globalRtpInput}
+                      onChange={(e) => setGlobalRtpInput(Number(e.target.value))}
+                      className="w-28 bg-[#0c101c] border border-purple-500/50 rounded-xl px-3 py-2 text-center text-lg font-black text-purple-300 font-mono focus:outline-none focus:border-purple-400"
+                    />
+                    <span className="text-lg font-black text-purple-400 font-mono">%</span>
+                  </div>
+                </div>
+
+                {/* Range Slider */}
+                <input
+                  type="range"
+                  min="85.0"
+                  max="99.0"
+                  step="0.1"
+                  value={globalRtpInput}
+                  onChange={(e) => setGlobalRtpInput(Number(e.target.value))}
+                  className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
+
+                {/* 3-Card Real-Time Math Calculator */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="bg-[#0c101c] border border-slate-800 rounded-xl p-3.5 space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Player Return (RTP)</span>
+                    <div className="text-base font-black text-purple-300 font-mono">{globalRtpInput.toFixed(2)}%</div>
+                    <span className="text-[9px] text-gray-500">Gross Wagers Returned to Players</span>
+                  </div>
+
+                  <div className="bg-[#0c101c] border border-emerald-500/30 rounded-xl p-3.5 space-y-1 bg-gradient-to-b from-emerald-500/5 to-transparent">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400">Casino House Edge (GGR Margin)</span>
+                    <div className="text-base font-black text-emerald-400 font-mono">
+                      +{(100 - globalRtpInput).toFixed(2)}%
+                    </div>
+                    <span className="text-[9px] text-emerald-500/80">Guaranteed Operator Retention</span>
+                  </div>
+
+                  <div className="bg-[#0c101c] border border-amber-500/30 rounded-xl p-3.5 space-y-1 bg-gradient-to-b from-amber-500/5 to-transparent">
+                    <span className="text-[10px] uppercase font-bold text-amber-300">Studio Share on 1 Cr Vol</span>
+                    <div className="text-base font-black text-amber-400 font-mono">
+                      ₹{(((100 - globalRtpInput) / 100) * 10000000 * 0.1).toLocaleString("en-IN", {
+                        maximumFractionDigits: 0,
+                      })}
+                    </div>
+                    <span className="text-[9px] text-amber-500/80">10% Studio Revenue Share</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Individual Game Fine-Tuning Grid (10 Games) */}
+            <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Gamepad2 className="w-4 h-4 text-amber-400" />
+                    <span>Game-by-Game RTP Fine-Tuning Matrix</span>
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Customize individual game RTPs to create unique volatility curves for crash, plinko, and mines games.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold bg-slate-800 text-gray-300 border border-slate-700 px-3 py-1 rounded-xl">
+                  {STUDIO_GAMES.length} Active Games
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {rtpSettings?.games?.map((g: any) => {
+                  const currentInputRtp = gameRtpInputs[g.gameUid] !== undefined ? gameRtpInputs[g.gameUid] : g.liveRtp;
+                  const houseEdge = Number((100 - currentInputRtp).toFixed(2));
+
+                  return (
+                    <div
+                      key={g.gameUid}
+                      className="bg-[#07090e] border border-slate-800 hover:border-slate-700 rounded-2xl p-4 space-y-3 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-black text-white flex items-center gap-2">
+                            <span>{g.name}</span>
+                            <span className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded font-mono">
+                              {g.category}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                            UID: {g.gameUid} • Max: {g.maxMultiplier}x
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            Edge: +{houseEdge}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Input & Slider Row */}
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <input
+                            type="range"
+                            min="85.0"
+                            max="99.0"
+                            step="0.1"
+                            value={currentInputRtp}
+                            onChange={(e) =>
+                              setGameRtpInputs((prev) => ({
+                                ...prev,
+                                [g.gameUid]: Number(e.target.value),
+                              }))
+                            }
+                            className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                          />
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="80.0"
+                              max="99.5"
+                              value={currentInputRtp}
+                              onChange={(e) =>
+                                setGameRtpInputs((prev) => ({
+                                  ...prev,
+                                  [g.gameUid]: Number(e.target.value),
+                                }))
+                              }
+                              className="w-20 bg-[#0c101c] border border-slate-700 rounded-lg px-2 py-1 text-center text-xs font-bold text-amber-300 font-mono focus:outline-none focus:border-amber-400"
+                            />
+                            <span className="text-xs font-bold text-gray-400 font-mono">%</span>
+                          </div>
+
+                          <button
+                            onClick={() => handleSaveSingleGameRtp(g.gameUid)}
+                            disabled={savingRtp}
+                            className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -2064,6 +2872,7 @@ export async function POST(req: Request) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

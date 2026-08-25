@@ -16,20 +16,34 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const {
-      user_id,
-      member_account,
-      game_uid,
-      balance = 1000,
-      currency = "INR",
-      callback_url,
-      return_url = "http://localhost:3000",
-    } = body;
+    const playerId =
+      body.user_id ||
+      body.member_account ||
+      body.userId ||
+      body.username ||
+      body.player_id ||
+      body.playerId ||
+      body.memberAccount ||
+      body.user ||
+      body.account;
 
-    const playerId = user_id || member_account;
+    const playerBalance =
+      typeof body.balance === "number"
+        ? body.balance
+        : typeof body.wallet === "number"
+        ? body.wallet
+        : typeof body.amount === "number"
+        ? body.amount
+        : Number(body.balance || body.wallet || body.amount || 1000);
+
+    const game_uid = body.game_uid || body.gameUid || body.game || "royal_skyrush";
+    const currency = body.currency || "INR";
+    const callback_url = body.callback_url || body.callbackUrl || auth.client.callbackUrl;
+    const return_url = body.return_url || body.returnUrl || "http://localhost:3000";
+
     if (!playerId) {
       return NextResponse.json(
-        { status: 0, error: "Missing required parameter: user_id (or member_account)" },
+        { status: 0, error: "Missing required parameter: user_id (or member_account / username)" },
         { status: 400 }
       );
     }
@@ -80,7 +94,7 @@ export async function POST(req: NextRequest) {
         operatorId: auth.client.id,
         userId: String(playerId),
         gameUid: selectedGameUid,
-        balance: Number(balance) || 1000,
+        balance: playerBalance,
         currency: String(currency).toUpperCase(),
         callbackUrl: callback_url || auth.client.callbackUrl || "http://localhost:3001/api/v1/round/resolve",
         returnUrl: return_url,

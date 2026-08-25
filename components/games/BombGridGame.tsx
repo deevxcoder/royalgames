@@ -125,6 +125,9 @@ export const BombGridGame: React.FC<BombGridGameProps> = ({
       );
       setIsGameOver(true);
       setIsPlaying(false);
+      if (onRecordRound) {
+        onRecordRound({ bet: betAmount, win: 0, multiplier: 0 });
+      }
     } else {
       // Safe Crystal Found!
       sound.playCoinFlip();

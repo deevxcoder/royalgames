@@ -112,6 +112,9 @@ export const TreasureTowerGame: React.FC<TreasureTowerGameProps> = ({
       setIsGameOver(true);
       setIsPlaying(false);
       sound.playLoss();
+      if (onRecordRound) {
+        onRecordRound({ bet: betAmount, win: 0, multiplier: 0 });
+      }
     }
   };
 

@@ -344,12 +344,12 @@ class SoundFX {
   }
 
   // Jili / PG Soft Style Big Win Celebration Orchestral Chime
-  public playBigWinFanfare(tier: "BIG" | "MEGA" | "SUPER" | "MAHARAJA" = "BIG") {
+  public playBigWinFanfare(tier: "BIG" | "MEGA" | "SUPER" | "ULTRA" = "BIG") {
     if (!this.enabled) return;
     this.initCtx();
     if (!this.ctx) return;
 
-    const count = tier === "MAHARAJA" ? 10 : tier === "SUPER" ? 8 : tier === "MEGA" ? 6 : 4;
+    const count = tier === "ULTRA" ? 10 : tier === "SUPER" ? 8 : tier === "MEGA" ? 6 : 4;
     const baseNotes = [440, 554.37, 659.25, 880, 1108.73, 1318.51, 1760, 2217.46, 2637.02, 3520];
 
     for (let i = 0; i < count; i++) {

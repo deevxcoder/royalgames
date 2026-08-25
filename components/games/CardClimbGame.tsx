@@ -128,6 +128,9 @@ export const CardClimbGame: React.FC<CardClimbGameProps> = ({
         setIsPlaying(false);
         setIsWin(false);
         sound.playLoss();
+        if (onRecordRound) {
+          onRecordRound({ bet: betAmount, win: 0, multiplier: 0 });
+        }
       }
     }, 380);
   };

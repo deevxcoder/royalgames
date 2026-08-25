@@ -122,6 +122,9 @@ export const TigerTrailGame: React.FC<TigerTrailGameProps> = ({
         setIsGameOver(true);
         setIsPlaying(false);
         sound.playLoss();
+        if (onRecordRound) {
+          onRecordRound({ bet: betAmount, win: 0, multiplier: 0 });
+        }
       }
       setIsStepping(false);
     }, 220);

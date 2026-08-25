@@ -21,6 +21,7 @@ import {
 import confetti from "canvas-confetti";
 import { sound } from "@/lib/soundFx";
 import { SkyRushCanvas, JumpPassengerEvent } from "./SkyRushCanvas";
+import { calculateAscentMultiplier } from "@/lib/serverCrashEngine";
 
 interface SkyRushGameProps {
   playerBalance: number;
@@ -132,30 +133,47 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
     gameStateRef.current = gameState;
   }, [gameState]);
 
-  // Generate 20 to 30 random passengers for the round
-  const createPlannedPassengers = (secretCrash: number) => {
-    const totalCount = Math.floor(Math.random() * 11) + 20; // 20 - 30
-    const shuffledNames = [...PASSENGER_NAMES].sort(() => Math.random() - 0.5);
+  // Deterministic Pseudo-Random Generator based on roundId seed
+  // Guarantees that all users and tabs in the world see the exact same other players & bets!
+  const createPlannedPassengers = (roundId: string, secretCrash: number) => {
+    let seed = 0;
+    for (let i = 0; i < roundId.length; i++) {
+      seed = (seed << 5) - seed + roundId.charCodeAt(i);
+      seed |= 0;
+    }
+    seed = Math.abs(seed) || 987654321;
+
+    const prng = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+
+    const totalCount = Math.floor(prng() * 8) + 22; // 22 - 29 players
+    const pool = [...PASSENGER_NAMES];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(prng() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
 
     const generated: Passenger[] = [];
     for (let i = 0; i < totalCount; i++) {
-      const user = shuffledNames[i % shuffledNames.length];
-      const bet = BET_AMOUNTS[Math.floor(Math.random() * BET_AMOUNTS.length)];
+      const user = pool[i % pool.length];
+      const bet = BET_AMOUNTS[Math.floor(prng() * BET_AMOUNTS.length)];
 
-      const rand = Math.random();
+      const rand = prng();
       let plannedMult: number;
       if (rand < 0.35) {
-        plannedMult = Number((1.15 + Math.random() * 0.45).toFixed(2));
+        plannedMult = Number((1.15 + prng() * 0.45).toFixed(2));
       } else if (rand < 0.70) {
-        plannedMult = Number((1.6 + Math.random() * 1.2).toFixed(2));
+        plannedMult = Number((1.6 + prng() * 1.2).toFixed(2));
       } else if (rand < 0.90) {
-        plannedMult = Number((2.8 + Math.random() * 3.2).toFixed(2));
+        plannedMult = Number((2.8 + prng() * 3.2).toFixed(2));
       } else {
-        plannedMult = Number((6.0 + Math.random() * 14.0).toFixed(2));
+        plannedMult = Number((6.0 + prng() * 14.0).toFixed(2));
       }
 
       generated.push({
-        id: `p_${Date.now()}_${i}`,
+        id: `p_${roundId}_${i}`,
         user,
         bet,
         plannedCashout: plannedMult,
@@ -169,178 +187,191 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
     return generated;
   };
 
-  // Start Countdown Sequence with Random Passenger Entries (20-30 players)
-  const startCountdown = useCallback(() => {
-    setGameState("COUNTDOWN");
-    setMultiplier(1.0);
-    setCountdown(4.0);
-    setCashoutToasts([]);
-    setCashoutEvents([]);
+  // Real-Time Server State Synchronizer with Network Offset Calculation
+  const serverStateRef = useRef<any>(null);
+  const currentRoundIdRef = useRef<string>("");
+  const activePhaseRef = useRef<string>("");
+  const serverOffsetRef = useRef<number>(0);
 
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-    if (passengerEntryIntervalRef.current) clearInterval(passengerEntryIntervalRef.current);
+  useEffect(() => {
+    let isMounted = true;
 
-    const r = Math.random();
-    const secretCrash = Math.max(1.01, Number((0.975 / (1 - r)).toFixed(2)));
-    setCrashMultiplier(secretCrash);
+    const pollServerState = async () => {
+      try {
+        const fetchStart = Date.now();
+        const res = await fetch("/api/studio/multiplayer/state?game=royal_skyrush");
+        const data = await res.json();
+        const fetchEnd = Date.now();
+        if (!isMounted || !data.success) return;
 
-    const planned = createPlannedPassengers(secretCrash);
-    plannedPassengersRef.current = planned;
+        // Calculate NTP-style time offset between server clock and local client clock
+        const roundTrip = fetchEnd - fetchStart;
+        const estimatedServerNow = data.serverTime + Math.floor(roundTrip / 2);
+        serverOffsetRef.current = estimatedServerNow - fetchEnd;
 
-    const initialCount = Math.min(planned.length, 3 + Math.floor(Math.random() * 3));
-    const initialBatch = planned.slice(0, initialCount);
-    let remainingIndex = initialCount;
-    setLivePlayers(initialBatch);
+        serverStateRef.current = data;
 
-    passengerEntryIntervalRef.current = setInterval(() => {
-      if (remainingIndex < planned.length) {
-        const nextBatchSize = Math.random() > 0.4 ? 1 : 2;
-        const nextItems = planned.slice(remainingIndex, remainingIndex + nextBatchSize).map((p) => ({
-          ...p,
-          isNewEntry: true,
-        }));
-        remainingIndex += nextBatchSize;
+        // Check for round / phase changes
+        const isNewRound = currentRoundIdRef.current !== data.roundId;
+        const isNewPhase = activePhaseRef.current !== data.phase;
 
-        setLivePlayers((prev) => [...prev, ...nextItems]);
-        sound.playChipBet();
-      } else {
-        clearInterval(passengerEntryIntervalRef.current);
-      }
-    }, 110);
+        if (isNewRound || !plannedPassengersRef.current.length) {
+          currentRoundIdRef.current = data.roundId;
+          const planned = createPlannedPassengers(data.roundId, data.crashMultiplier || 2.0);
+          plannedPassengersRef.current = planned;
+        }
 
-    setPanel1((prev) => ({ ...prev, hasCashedOut: false, cashedOutMult: null }));
-    setPanel2((prev) => ({ ...prev, hasCashedOut: false, cashedOutMult: null }));
+        if (isNewRound || isNewPhase) {
+          activePhaseRef.current = data.phase;
 
-    let timeLeft = 4.0;
-    countdownIntervalRef.current = setInterval(() => {
-      timeLeft -= 0.1;
-      if (timeLeft <= 0) {
-        clearInterval(countdownIntervalRef.current);
-        clearInterval(passengerEntryIntervalRef.current);
-        setLivePlayers(planned.map((p) => ({ ...p, isNewEntry: false })));
-        startFlight(secretCrash);
-      } else {
-        setCountdown(Number(timeLeft.toFixed(1)));
-      }
-    }, 100);
-  }, []);
+          if (data.phase === "COUNTDOWN") {
+            setGameState("COUNTDOWN");
+            setMultiplier(1.0);
+            setCountdown(data.countdownLeft);
+            setCrashMultiplier(data.crashMultiplier || 2.0);
+            setCashoutToasts([]);
+            setCashoutEvents([]);
+            if (isNewRound) {
+              setPanel1((prev) => ({ ...prev, hasCashedOut: false, cashedOutMult: null }));
+              setPanel2((prev) => ({ ...prev, hasCashedOut: false, cashedOutMult: null }));
+            }
+            if (data.history) {
+              setFlightHistory(data.history.slice(0, 12));
+            }
+            setLivePlayers(plannedPassengersRef.current.slice(0, Math.min(plannedPassengersRef.current.length, 12)));
+          } else if (data.phase === "FLYING") {
+            setGameState("FLYING");
+            setCrashMultiplier(data.crashMultiplier || 2.0);
+            sound.startJetEngine();
 
-  // Start Active Flight
-  const startFlight = (secretCrash: number) => {
-    setGameState("FLYING");
-    setMultiplier(1.0);
-    sound.startJetEngine();
+            // Deduct placed bets on takeoff
+            const p1AtStart = panel1Ref.current;
+            const p2AtStart = panel2Ref.current;
+            const bal = playerBalanceRef.current;
+            let deduction = 0;
+            if (p1AtStart.isBetPlaced && !p1AtStart.hasCashedOut && bal >= p1AtStart.amount) {
+              deduction += p1AtStart.amount;
+            }
+            if (p2AtStart.isBetPlaced && !p2AtStart.hasCashedOut && bal >= deduction + p2AtStart.amount) {
+              deduction += p2AtStart.amount;
+            }
+            if (deduction > 0) {
+              onUpdateBalance(bal - deduction);
+            }
+          } else if (data.phase === "CRASHED") {
+            setGameState("CRASHED");
+            setMultiplier(data.crashMultiplier);
+            sound.playSonicBoom();
+            if (data.history) {
+              setFlightHistory(data.history.slice(0, 12));
+            }
 
-    const p1AtStart = panel1Ref.current;
-    const p2AtStart = panel2Ref.current;
-    const bal = playerBalanceRef.current;
+            // Record round loss for uncashed bets
+            const p1 = panel1Ref.current;
+            const p2 = panel2Ref.current;
+            if (p1.isBetPlaced && !p1.hasCashedOut && onRecordRound) {
+              onRecordRound({ bet: p1.amount, win: 0, multiplier: data.crashMultiplier });
+            }
+            if (p2.isBetPlaced && !p2.hasCashedOut && onRecordRound) {
+              onRecordRound({ bet: p2.amount, win: 0, multiplier: data.crashMultiplier });
+            }
 
-    let deduction = 0;
-    if (p1AtStart.isBetPlaced && bal >= p1AtStart.amount) {
-      deduction += p1AtStart.amount;
-    }
-    if (p2AtStart.isBetPlaced && bal >= (deduction + p2AtStart.amount)) {
-      deduction += p2AtStart.amount;
-    }
-    if (deduction > 0) {
-      onUpdateBalance(bal - deduction);
-    }
-
-    const startTime = Date.now();
-
-    gameLoopRef.current = setInterval(() => {
-      const elapsedSec = (Date.now() - startTime) / 1000;
-      const currentMult = Number(Math.exp(0.065 * Math.pow(elapsedSec * 1.5, 1.25)).toFixed(2));
-
-      sound.updateJetPitch(currentMult);
-
-      // 1. Process Passenger Cashouts with Live Animation & Ejection Jumps
-      setLivePlayers((prev) => {
-        let hasNewCashouts = false;
-        const updated = prev.map((p) => {
-          if (!p.cashedOutAt && p.plannedCashout <= currentMult && currentMult < secretCrash) {
-            hasNewCashouts = true;
-            const win = Math.round(p.bet * currentMult);
-
-            setCashoutEvents((prevJumps) => [
-              ...prevJumps,
-              {
-                id: `jump_${p.id}_${Date.now()}_${Math.random()}`,
-                user: p.user,
-                amount: win,
-                multiplier: currentMult,
-                timestamp: Date.now(),
-              },
-            ]);
-
-            setCashoutToasts((t) => [
-              {
-                id: `toast_${p.id}_${Date.now()}`,
-                user: p.user,
-                amount: win,
-                multiplier: currentMult,
-              },
-              ...t.slice(0, 2),
-            ]);
-
-            return {
-              ...p,
-              cashedOutAt: currentMult,
-              winAmount: win,
-              justCashedOut: true,
-            };
+            setPanel1((prev) => ({ ...prev, isBetPlaced: false }));
+            setPanel2((prev) => ({ ...prev, isBetPlaced: false }));
           }
-          return p;
+        }
+      } catch (e) {}
+    };
+
+    pollServerState();
+    const interval = setInterval(pollServerState, 200);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [onRecordRound, onUpdateBalance]);
+
+  // 60FPS Authoritative Flight & Countdown Animation Loop
+  useEffect(() => {
+    const animLoop = setInterval(() => {
+      const serverState = serverStateRef.current;
+      if (!serverState) return;
+
+      const accurateServerNow = Date.now() + serverOffsetRef.current;
+
+      if (serverState.phase === "FLYING" && serverState.flightStartTime) {
+        const elapsedSec = Math.max(0, (accurateServerNow - serverState.flightStartTime) / 1000);
+        const currentMult = Number(
+          Math.min(serverState.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2)
+        );
+
+        setMultiplier(currentMult);
+        sound.updateJetPitch(currentMult);
+
+        // Check Passenger Cashouts with synchronized event identifiers
+        setLivePlayers((prev) => {
+          return prev.map((p) => {
+            if (!p.cashedOutAt && p.plannedCashout <= currentMult && currentMult < serverState.crashMultiplier) {
+              const win = Math.round(p.bet * currentMult);
+              setCashoutEvents((prevJumps) => [
+                ...prevJumps,
+                {
+                  id: `jump_${p.id}_${p.plannedCashout}`,
+                  user: p.user,
+                  amount: win,
+                  multiplier: currentMult,
+                  timestamp: Date.now(),
+                },
+              ]);
+              setCashoutToasts((t) => [
+                {
+                  id: `toast_${p.id}_${p.plannedCashout}`,
+                  user: p.user,
+                  amount: win,
+                  multiplier: currentMult,
+                },
+                ...t.slice(0, 2),
+              ]);
+              return { ...p, cashedOutAt: currentMult, winAmount: win, justCashedOut: true };
+            }
+            return p;
+          });
         });
 
-        return updated;
-      });
+        // Check Auto-Cashouts for Panel 1 & Panel 2
+        const p1 = panel1Ref.current;
+        if (
+          p1.isBetPlaced &&
+          !p1.hasCashedOut &&
+          p1.autoCashoutEnabled &&
+          p1.autoCashoutMult > 1.0 &&
+          currentMult >= p1.autoCashoutMult &&
+          currentMult < serverState.crashMultiplier
+        ) {
+          triggerCashout(1, p1.autoCashoutMult);
+        }
 
-      // 2. CHECK AUTO-CASHOUT FOR USER PANEL 1
-      const p1 = panel1Ref.current;
-      if (
-        p1.isBetPlaced &&
-        !p1.hasCashedOut &&
-        p1.autoCashoutEnabled &&
-        p1.autoCashoutMult > 1.0 &&
-        currentMult >= p1.autoCashoutMult &&
-        currentMult < secretCrash
-      ) {
-        triggerCashout(1, p1.autoCashoutMult);
+        const p2 = panel2Ref.current;
+        if (
+          p2.isBetPlaced &&
+          !p2.hasCashedOut &&
+          p2.autoCashoutEnabled &&
+          p2.autoCashoutMult > 1.0 &&
+          currentMult >= p2.autoCashoutMult &&
+          currentMult < serverState.crashMultiplier
+        ) {
+          triggerCashout(2, p2.autoCashoutMult);
+        }
+      } else if (serverState.phase === "COUNTDOWN") {
+        const elapsedInPhase = Math.max(0, accurateServerNow - serverState.phaseStartTime);
+        const totalDuration = serverState.countdownTotalMs || 10000;
+        const timeLeft = Math.max(0, (totalDuration - elapsedInPhase) / 1000);
+        setCountdown(Number(timeLeft.toFixed(1)));
       }
+    }, 35);
 
-      // 3. CHECK AUTO-CASHOUT FOR USER PANEL 2
-      const p2 = panel2Ref.current;
-      if (
-        p2.isBetPlaced &&
-        !p2.hasCashedOut &&
-        p2.autoCashoutEnabled &&
-        p2.autoCashoutMult > 1.0 &&
-        currentMult >= p2.autoCashoutMult &&
-        currentMult < secretCrash
-      ) {
-        triggerCashout(2, p2.autoCashoutMult);
-      }
-
-      // 4. Check Crash Event
-      if (currentMult >= secretCrash) {
-        clearInterval(gameLoopRef.current);
-        setMultiplier(secretCrash);
-        setGameState("CRASHED");
-        sound.playSonicBoom();
-        setFlightHistory((prev) => [secretCrash, ...prev.slice(0, 11)]);
-
-        setPanel1((prev) => ({ ...prev, isBetPlaced: false }));
-        setPanel2((prev) => ({ ...prev, isBetPlaced: false }));
-
-        setTimeout(() => {
-          startCountdown();
-        }, 3500);
-      } else {
-        setMultiplier(currentMult);
-      }
-    }, 50);
-  };
+    return () => clearInterval(animLoop);
+  }, []);
 
   // User Cashout action
   const triggerCashout = (panelNumber: 1 | 2, customMult?: number) => {
@@ -415,14 +446,10 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
   };
 
   useEffect(() => {
-    startCountdown();
     return () => {
-      clearInterval(gameLoopRef.current);
-      clearInterval(countdownIntervalRef.current);
-      clearInterval(passengerEntryIntervalRef.current);
       sound.stopJetEngine();
     };
-  }, [startCountdown]);
+  }, []);
 
   const cashedCount = livePlayers.filter((p) => p.cashedOutAt !== null).length;
   const isPanel1InputsDisabled = gameState !== "COUNTDOWN" || panel1.isBetPlaced;

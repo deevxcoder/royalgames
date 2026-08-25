@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useParams, useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { sound } from "@/lib/soundFx";
 import { STUDIO_GAMES } from "@/lib/gamesCatalog";
-import { MaharajaRichesGame } from "@/components/games/MaharajaRichesGame";
 import { SkyRushGame } from "@/components/games/SkyRushGame";
 import { TigerTrailGame } from "@/components/games/TigerTrailGame";
 import { BombGridGame } from "@/components/games/BombGridGame";
@@ -33,15 +32,49 @@ export default function PlaySessionPage() {
   const router = useRouter();
 
   const sessionId = (params?.sessionId as string) || "sess_demo";
-  const initialGame = searchParams.get("game") || "royal_maharajariches";
+  const initialGame = searchParams.get("game") || "royal_skyrush";
   const returnUrl = searchParams.get("returnUrl") || "/";
 
   const [activeGame, setActiveGame] = useState<string>(initialGame);
   const [playerBalance, setPlayerBalance] = useState<number>(1000);
+  const [currency, setCurrency] = useState<string>("INR");
+  const [clientName, setClientName] = useState<string>("Demo Mode");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
   const [roundHistory, setRoundHistory] = useState<number[]>([1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2]);
+
+  // Load Session Info from Database
+  useEffect(() => {
+    const fetchSession = async () => {
+      try {
+        const token = searchParams.get("token") || "";
+        const urlGame = searchParams.get("game") || "";
+        const res = await fetch(`/api/studio/session?sessionId=${sessionId}&token=${token}&game=${urlGame}`);
+        const data = await res.json();
+        if (data.success) {
+          if (typeof data.balance === "number") {
+            setPlayerBalance(data.balance);
+          }
+          if (data.currency) {
+            setCurrency(data.currency);
+          }
+          if (data.clientName) {
+            setClientName(data.clientName);
+          }
+          // If URL has a game, use it; otherwise use session gameUid
+          if (urlGame && STUDIO_GAMES.some((g) => g.game_uid === urlGame)) {
+            setActiveGame(urlGame);
+          } else if (data.gameUid && STUDIO_GAMES.some((g) => g.game_uid === data.gameUid)) {
+            setActiveGame(data.gameUid);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load session:", err);
+      }
+    };
+    fetchSession();
+  }, [sessionId, searchParams]);
 
   // Sync game from URL params
   useEffect(() => {
@@ -51,11 +84,47 @@ export default function PlaySessionPage() {
     }
   }, [searchParams]);
 
+  // Authoritative Round Settlement Handler
+  const handleRecordRound = useCallback(
+    async (roundData: { bet: number; win: number; multiplier: number }) => {
+      // 1. Immediately update UI round history
+      setRoundHistory((prev) => [roundData.multiplier, ...prev.slice(0, 9)]);
+
+      // 2. Transmit to studio backend
+      try {
+        const token = searchParams.get("token") || "";
+        const res = await fetch("/api/studio/round", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            sessionToken: token,
+            gameUid: activeGame,
+            betAmount: roundData.bet,
+            winAmount: roundData.win,
+            multiplier: roundData.multiplier,
+            currentBalance: playerBalance,
+          }),
+        });
+        const result = await res.json();
+        if (result.success && typeof result.newBalance === "number") {
+          setPlayerBalance(result.newBalance);
+        }
+      } catch (err) {
+        console.error("Failed to record round:", err);
+      }
+    },
+    [sessionId, searchParams, activeGame, playerBalance]
+  );
+
   // Switch Game in Demo Session
   const handleSwitchGame = (gameUid: string) => {
     setActiveGame(gameUid);
     setIsGameMenuOpen(false);
-    router.replace(`/play/${sessionId}?game=${gameUid}`);
+    const token = searchParams.get("token");
+    const tokenPart = token ? `&token=${encodeURIComponent(token)}` : "";
+    const returnPart = returnUrl ? `&returnUrl=${encodeURIComponent(returnUrl)}` : "";
+    router.replace(`/play/${sessionId}?game=${gameUid}${tokenPart}${returnPart}`);
   };
 
   // Toggle Fullscreen
@@ -77,12 +146,12 @@ export default function PlaySessionPage() {
           <a
             href={returnUrl}
             className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-gray-300 hover:text-white transition-colors"
-            title="Exit to Studio Home"
+            title="Exit to Casino Lobby"
           >
             <ArrowLeft className="w-4 h-4" />
           </a>
 
-          {/* Interactive Game Switcher Dropdown (Demo & Preview Mode) */}
+          {/* Interactive Game Switcher Dropdown */}
           <div className="relative">
             <button
               onClick={() => setIsGameMenuOpen(!isGameMenuOpen)}
@@ -157,9 +226,12 @@ export default function PlaySessionPage() {
           <div className="flex items-center gap-1.5 sm:gap-2 bg-[#06080e] border border-slate-800 px-2.5 sm:px-3 py-1.5 rounded-xl">
             <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
             <div className="flex flex-col text-right">
-              <span className="text-[8px] sm:text-[9px] uppercase font-bold text-gray-500 leading-none">Balance</span>
+              <span className="text-[8px] sm:text-[9px] uppercase font-bold text-gray-500 leading-none">
+                {currency} Balance
+              </span>
               <span className="text-xs sm:text-sm font-black text-emerald-400 font-mono leading-tight">
-                ₹{playerBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                {currency === "INR" ? "₹" : "$"}
+                {playerBalance.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
           </div>
@@ -193,28 +265,13 @@ export default function PlaySessionPage() {
           {/* Ambient Background Glow */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-          {/* GAME 0: MAHARAJA RICHES (3D 5x3 Royal Indian Slot) */}
-          {activeGame === "royal_maharajariches" && (
-            <div className="w-full">
-              <MaharajaRichesGame
-                playerBalance={playerBalance}
-                onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
-              />
-            </div>
-          )}
-
           {/* GAME 1: SKY RUSH (Crash Multiplier Jet) */}
           {activeGame === "royal_skyrush" && (
             <div className="w-full">
               <SkyRushGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -225,9 +282,7 @@ export default function PlaySessionPage() {
               <TigerTrailGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -238,9 +293,7 @@ export default function PlaySessionPage() {
               <BombGridGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -251,9 +304,7 @@ export default function PlaySessionPage() {
               <DropXGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -264,9 +315,7 @@ export default function PlaySessionPage() {
               <CricketBlastGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -277,9 +326,7 @@ export default function PlaySessionPage() {
               <InfinityXGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -290,9 +337,7 @@ export default function PlaySessionPage() {
               <TreasureTowerGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -303,9 +348,7 @@ export default function PlaySessionPage() {
               <DiceXGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -316,9 +359,7 @@ export default function PlaySessionPage() {
               <CardClimbGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}
@@ -329,9 +370,7 @@ export default function PlaySessionPage() {
               <LuckyWheelGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
-                onRecordRound={(data) => {
-                  setRoundHistory((prev) => [data.multiplier, ...prev.slice(0, 9)]);
-                }}
+                onRecordRound={handleRecordRound}
               />
             </div>
           )}

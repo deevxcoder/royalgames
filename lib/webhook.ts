@@ -15,8 +15,8 @@ export interface SettlementPayload {
 }
 
 export async function dispatchWebhookCallback(
-  operatorId: string,
-  sessionId: string,
+  operatorId: string | null,
+  dbSessionId: string | null,
   callbackUrl: string,
   payload: SettlementPayload
 ): Promise<{ success: boolean; status: number; data?: any; error?: string }> {
@@ -29,40 +29,56 @@ export async function dispatchWebhookCallback(
       },
     });
 
-    // Log success
-    await db.webhookLog.create({
-      data: {
-        operatorId,
-        sessionId,
-        serialNumber: payload.serial_number,
-        targetUrl: callbackUrl,
-        payload: JSON.stringify(payload),
-        responseCode: response.status,
-        responseBody: typeof response.data === "string" ? response.data : JSON.stringify(response.data),
-        status: "SUCCESS",
-        attempts: 1,
-      },
-    });
+    // Log success in database if operator exists
+    if (operatorId) {
+      try {
+        await db.webhookLog.create({
+          data: {
+            operatorId,
+            sessionId: dbSessionId || null,
+            serialNumber: payload.serial_number,
+            targetUrl: callbackUrl,
+            payload: JSON.stringify(payload),
+            responseCode: response.status,
+            responseBody: typeof response.data === "string" ? response.data : JSON.stringify(response.data),
+            status: "SUCCESS",
+            attempts: 1,
+          },
+        });
+      } catch (logErr) {
+        console.error("Failed to write webhookLog:", logErr);
+      }
+    }
 
     return { success: true, status: response.status, data: response.data };
   } catch (err: any) {
     const status = err.response?.status || 500;
-    const body = err.response?.data ? (typeof err.response.data === "string" ? err.response.data : JSON.stringify(err.response.data)) : err.message;
+    const body = err.response?.data
+      ? typeof err.response.data === "string"
+        ? err.response.data
+        : JSON.stringify(err.response.data)
+      : err.message;
 
-    // Log failure
-    await db.webhookLog.create({
-      data: {
-        operatorId,
-        sessionId,
-        serialNumber: payload.serial_number,
-        targetUrl: callbackUrl,
-        payload: JSON.stringify(payload),
-        responseCode: status,
-        responseBody: body,
-        status: "FAILED",
-        attempts: 1,
-      },
-    });
+    // Log failure in database if operator exists
+    if (operatorId) {
+      try {
+        await db.webhookLog.create({
+          data: {
+            operatorId,
+            sessionId: dbSessionId || null,
+            serialNumber: payload.serial_number,
+            targetUrl: callbackUrl,
+            payload: JSON.stringify(payload),
+            responseCode: status,
+            responseBody: body,
+            status: "FAILED",
+            attempts: 1,
+          },
+        });
+      } catch (logErr) {
+        console.error("Failed to write webhookLog failure:", logErr);
+      }
+    }
 
     return { success: false, status, error: err.message };
   }

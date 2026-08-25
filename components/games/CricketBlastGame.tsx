@@ -15,6 +15,7 @@ import {
 import confetti from "canvas-confetti";
 import { sound } from "@/lib/soundFx";
 import { CricketBlastCanvas } from "./CricketBlastCanvas";
+import { calculateAscentMultiplier } from "@/lib/serverCrashEngine";
 
 interface CricketBlastGameProps {
   playerBalance: number;
@@ -41,8 +42,9 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
   const [autoCashoutMult, setAutoCashoutMult] = useState(2.0);
   const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
 
-  const gameLoopRef = useRef<any>(null);
-  const countdownRef = useRef<any>(null);
+  const serverStateRef = useRef<any>(null);
+  const currentRoundIdRef = useRef<string>("");
+  const activePhaseRef = useRef<string>("");
 
   // Synchronized state refs for rock-solid interval execution
   const isBetPlacedRef = useRef(isBetPlaced);
@@ -61,85 +63,121 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
   useEffect(() => { playerBalanceRef.current = playerBalance; }, [playerBalance]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
 
-  // 1. Start Countdown Sequence
-  const startCountdown = useCallback(() => {
-    setGameState("PREPARING");
-    setMultiplier(1.0);
-    setCountdown(4.0);
-    setHasCashedOut(false);
+  const serverOffsetRef = useRef<number>(0);
 
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+  // Real-Time Server State Synchronizer
+  useEffect(() => {
+    let isMounted = true;
 
-    let timeLeft = 4.0;
-    countdownRef.current = setInterval(() => {
-      timeLeft -= 0.1;
-      if (timeLeft <= 0) {
-        clearInterval(countdownRef.current);
-        startShot();
-      } else {
+    const pollServerState = async () => {
+      try {
+        const fetchStart = Date.now();
+        const res = await fetch("/api/studio/multiplayer/state?game=royal_cricketblast");
+        const data = await res.json();
+        const fetchEnd = Date.now();
+        if (!isMounted || !data.success) return;
+
+        // Calculate NTP-style time offset
+        const roundTrip = fetchEnd - fetchStart;
+        const estimatedServerNow = data.serverTime + Math.floor(roundTrip / 2);
+        serverOffsetRef.current = estimatedServerNow - fetchEnd;
+
+        serverStateRef.current = data;
+
+        const isNewRound = currentRoundIdRef.current !== data.roundId;
+        const isNewPhase = activePhaseRef.current !== data.phase;
+
+        if (isNewRound || isNewPhase) {
+          currentRoundIdRef.current = data.roundId;
+          activePhaseRef.current = data.phase;
+
+          if (data.phase === "COUNTDOWN") {
+            setGameState("PREPARING");
+            setMultiplier(1.0);
+            setCountdown(data.countdownLeft);
+            setCrashMultiplier(data.crashMultiplier || 2.5);
+            setHasCashedOut(false);
+            if (data.history) {
+              setShotHistory(data.history.slice(0, 9));
+            }
+          } else if (data.phase === "FLYING") {
+            setGameState("AIRBORNE");
+            setCrashMultiplier(data.crashMultiplier || 2.5);
+            sound.startJetEngine();
+
+            // Deduct placed bet on ball strike
+            const placed = isBetPlacedRef.current;
+            const bet = betAmountRef.current;
+            const bal = playerBalanceRef.current;
+            if (placed && bal >= bet) {
+              onUpdateBalance(bal - bet);
+            }
+          } else if (data.phase === "CRASHED") {
+            setGameState("CAUGHT");
+            setMultiplier(data.crashMultiplier);
+            sound.playSonicBoom();
+            if (data.history) {
+              setShotHistory(data.history.slice(0, 9));
+            }
+
+            // Record loss for un-cashed bets
+            if (isBetPlacedRef.current && !hasCashedOutRef.current) {
+              if (onRecordRound) {
+                onRecordRound({ bet: betAmountRef.current, win: 0, multiplier: data.crashMultiplier });
+              }
+            }
+            setIsBetPlaced(false);
+          }
+        }
+      } catch (e) {}
+    };
+
+    pollServerState();
+    const interval = setInterval(pollServerState, 200);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [onRecordRound, onUpdateBalance]);
+
+  // 60FPS Smooth Ball Multiplier Ascent Loop
+  useEffect(() => {
+    const animLoop = setInterval(() => {
+      const serverState = serverStateRef.current;
+      if (!serverState) return;
+
+      const accurateServerNow = Date.now() + serverOffsetRef.current;
+
+      if (serverState.phase === "FLYING" && serverState.flightStartTime) {
+        const elapsedSec = Math.max(0, (accurateServerNow - serverState.flightStartTime) / 1000);
+        const currentMult = Number(
+          Math.min(serverState.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2)
+        );
+
+        setMultiplier(currentMult);
+        sound.updateJetPitch(currentMult);
+
+        // Auto-cashout check
+        if (
+          isBetPlacedRef.current &&
+          !hasCashedOutRef.current &&
+          autoCashoutEnabledRef.current &&
+          autoCashoutMultRef.current > 1.0 &&
+          currentMult >= autoCashoutMultRef.current &&
+          currentMult < serverState.crashMultiplier
+        ) {
+          triggerCashout(autoCashoutMultRef.current);
+        }
+      } else if (serverState.phase === "COUNTDOWN") {
+        const elapsedInPhase = Math.max(0, accurateServerNow - serverState.phaseStartTime);
+        const totalDuration = serverState.countdownTotalMs || 10000;
+        const timeLeft = Math.max(0, (totalDuration - elapsedInPhase) / 1000);
         setCountdown(Number(timeLeft.toFixed(1)));
       }
-    }, 100);
+    }, 35);
+
+    return () => clearInterval(animLoop);
   }, []);
-
-  // 2. Start Active Shot in Air
-  const startShot = () => {
-    setGameState("AIRBORNE");
-    setMultiplier(1.0);
-    sound.startJetEngine();
-
-    // Determine secret boundary catch point (House Edge 2.4%)
-    const r = Math.random();
-    const secretCrash = Math.max(1.01, Number((0.976 / (1 - r)).toFixed(2)));
-    setCrashMultiplier(secretCrash);
-
-    const placed = isBetPlacedRef.current;
-    const bet = betAmountRef.current;
-    const bal = playerBalanceRef.current;
-
-    if (placed && bal >= bet) {
-      onUpdateBalance(bal - bet);
-    }
-
-    const startTime = Date.now();
-
-    gameLoopRef.current = setInterval(() => {
-      const elapsedSec = (Date.now() - startTime) / 1000;
-      const currentMult = Number(Math.exp(0.07 * Math.pow(elapsedSec * 1.4, 1.2)).toFixed(2));
-
-      sound.updateJetPitch(currentMult);
-
-      // Check Auto-Cashout
-      if (
-        isBetPlacedRef.current &&
-        !hasCashedOutRef.current &&
-        autoCashoutEnabledRef.current &&
-        autoCashoutMultRef.current > 1.0 &&
-        currentMult >= autoCashoutMultRef.current &&
-        currentMult < secretCrash
-      ) {
-        triggerCashout(autoCashoutMultRef.current);
-      }
-
-      // Check Catch Out Event
-      if (currentMult >= secretCrash) {
-        clearInterval(gameLoopRef.current);
-        setMultiplier(secretCrash);
-        setGameState("CAUGHT");
-        sound.playSonicBoom();
-        setShotHistory((prev) => [secretCrash, ...prev.slice(0, 9)]);
-        setIsBetPlaced(false);
-
-        // Schedule next ball
-        setTimeout(() => {
-          startCountdown();
-        }, 3000);
-      } else {
-        setMultiplier(currentMult);
-      }
-    }, 50);
-  };
 
   // 3. Cashout Shot Action
   const triggerCashout = (customMult?: number) => {
@@ -184,13 +222,10 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
   };
 
   useEffect(() => {
-    startCountdown();
     return () => {
-      clearInterval(gameLoopRef.current);
-      clearInterval(countdownRef.current);
       sound.stopJetEngine();
     };
-  }, [startCountdown]);
+  }, []);
 
   const isInputsDisabled = gameState !== "PREPARING" || isBetPlaced;
 

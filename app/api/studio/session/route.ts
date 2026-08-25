@@ -1,0 +1,91 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { verifySessionToken } from "@/lib/auth";
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const sessionId = searchParams.get("sessionId");
+    const token = searchParams.get("token");
+    const requestedGame = searchParams.get("game");
+
+    const isDemoSession =
+      !sessionId ||
+      sessionId === "sess_demo" ||
+      sessionId === "demo_session" ||
+      sessionId.startsWith("demo_") ||
+      sessionId.startsWith("sess_demo");
+
+    if (isDemoSession) {
+      return NextResponse.json({
+        success: true,
+        isDemo: true,
+        balance: 1000.0,
+        currency: "INR",
+        userId: "demo_player",
+        clientName: "Demo Casino Player",
+        gameUid: requestedGame || "royal_skyrush",
+      });
+    }
+
+    // Try finding in database
+    const session = await db.gameSession.findUnique({
+      where: { sessionId },
+      include: {
+        operator: {
+          select: {
+            id: true,
+            companyName: true,
+            currency: true,
+          },
+        },
+      },
+    });
+
+    if (session) {
+      const isExpired = new Date() > new Date(session.expiresAt);
+      return NextResponse.json({
+        success: true,
+        isDemo: false,
+        sessionId: session.sessionId,
+        userId: session.userId,
+        balance: session.balance,
+        currency: session.currency || "INR",
+        gameUid: session.gameUid || requestedGame || "royal_skyrush",
+        clientName: session.operator?.companyName || "Royal Client",
+        operatorId: session.operatorId,
+        isExpired,
+      });
+    }
+
+    // If token is present, try decoding
+    if (token) {
+      const decoded = verifySessionToken(token);
+      if (decoded) {
+        return NextResponse.json({
+          success: true,
+          isDemo: false,
+          sessionId: decoded.sessionId,
+          userId: decoded.userId,
+          balance: 1000.0,
+          currency: "INR",
+          gameUid: decoded.gameUid || requestedGame || "royal_skyrush",
+          clientName: "Royal Client",
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      isDemo: true,
+      balance: 1000.0,
+      currency: "INR",
+      userId: "guest_player",
+      clientName: "Guest",
+      gameUid: requestedGame || "royal_skyrush",
+    });
+  } catch (error: any) {
+    console.error("Error fetching studio session:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

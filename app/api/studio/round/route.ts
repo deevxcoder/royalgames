@@ -1,287 +1,170 @@
 import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
-
-const SUITS = ["♠", "♥", "♦", "♣"];
-const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
-
-function getRandomCard() {
-  const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
-  const rank = RANKS[Math.floor(Math.random() * RANKS.length)];
-  const isRed = suit === "♥" || suit === "♦";
-  return {
-    rank,
-    suit,
-    color: isRed ? "red" : "black",
-    display: `${rank}${suit}`,
-  };
-}
+import { db } from "@/lib/db";
+import { STUDIO_GAMES } from "@/lib/gamesCatalog";
+import { dispatchWebhookCallback } from "@/lib/webhook";
+import { verifySessionToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const {
       sessionId,
       sessionToken,
       gameUid = "royal_skyrush",
-      betAmount = 50,
+      betAmount = 0,
+      winAmount = 0,
+      multiplier = 0,
       currentBalance = 1000,
-      // Game-specific parameters
-      coinChoice = "heads",
-      andarBaharSide = "andar",
-      chickenAction = "step", // "step" or "cashout"
-      currentChickenLane = 0,
-      minesCount = 3,
-      revealedMinesIndices = [],
-      mineTileIndex = 0,
-      isMinesCashout = false,
-      rouletteBetType = "red", // "red", "black", "even", "odd", "number_17", etc.
-      aviatorCashoutMult = 0, // > 0 if cashed out
+      extraData = {},
     } = body;
 
     const bet = Number(betAmount) || 0;
-    let winAmount = 0;
-    let multiplier = 0;
-    let isWin = false;
-    let extraData: any = {};
-    let gameName = "Royal Game";
+    const win = Number(winAmount) || 0;
+    const mult = Number(multiplier) || (bet > 0 ? Number((win / bet).toFixed(2)) : 0);
 
-    // 1. COIN FLIP ROYALE
-    if (gameUid === "royal_coinflip") {
-      gameName = "Coin Flip Royale";
-      const outcome = Math.random() < 0.5 ? "heads" : "tails";
-      isWin = outcome === coinChoice;
-      multiplier = isWin ? 1.96 : 0;
-      winAmount = isWin ? Number((bet * multiplier).toFixed(2)) : 0;
-      extraData = {
-        coinResult: outcome,
-        multiplier,
-      };
-    }
+    const gameMeta = STUDIO_GAMES.find((g) => g.game_uid === gameUid) || {
+      game_id: 88801,
+      name: gameUid,
+      game_uid: gameUid,
+    };
 
-    // 2. ANDAR BAHAR LIVE
-    else if (gameUid === "royal_andarbahar") {
-      gameName = "Andar Bahar Live";
-      const joker = getRandomCard();
-      const dealtAndar: any[] = [];
-      const dealtBahar: any[] = [];
-      let winningSide: "andar" | "bahar" = "andar";
-      let matched = false;
-
-      // Deal cards alternately
-      for (let i = 0; i < 20; i++) {
-        const nextCardAndar = getRandomCard();
-        dealtAndar.push(nextCardAndar);
-        if (nextCardAndar.rank === joker.rank) {
-          winningSide = "andar";
-          matched = true;
-          break;
-        }
-
-        const nextCardBahar = getRandomCard();
-        dealtBahar.push(nextCardBahar);
-        if (nextCardBahar.rank === joker.rank) {
-          winningSide = "bahar";
-          matched = true;
-          break;
-        }
-      }
-
-      if (!matched) {
-        // Guarantee match on chosen random side if exhausted
-        const matchCard = { ...joker, suit: joker.suit === "♠" ? "♥" : "♠" };
-        winningSide = Math.random() < 0.5 ? "andar" : "bahar";
-        if (winningSide === "andar") dealtAndar.push(matchCard);
-        else dealtBahar.push(matchCard);
-      }
-
-      isWin = winningSide === andarBaharSide;
-      multiplier = isWin ? (winningSide === "andar" ? 1.9 : 2.0) : 0;
-      winAmount = isWin ? Number((bet * multiplier).toFixed(2)) : 0;
-      extraData = {
-        jokerCard: joker,
-        dealtAndar,
-        dealtBahar,
-        winningSide,
-        multiplier,
-      };
-    }
-
-    // 3. CHICKEN ROAD CROSS
-    else if (gameUid === "royal_chickencross") {
-      gameName = "Chicken Road Cross";
-      if (chickenAction === "cashout") {
-        multiplier = Math.max(1.0, 1.0 + currentChickenLane * 0.35);
-        winAmount = Number((bet * multiplier).toFixed(2));
-        isWin = true;
-        extraData = {
-          cashedOut: true,
-          crashed: false,
-          lane: currentChickenLane,
-          multiplier,
-        };
-      } else {
-        // Step forward
-        const crashProbability = 0.18 + currentChickenLane * 0.04;
-        const crashed = Math.random() < crashProbability;
-        if (crashed) {
-          isWin = false;
-          winAmount = 0;
-          multiplier = 0;
-          extraData = {
-            cashedOut: false,
-            crashed: true,
-            lane: currentChickenLane,
-          };
-        } else {
-          const nextLane = currentChickenLane + 1;
-          multiplier = Number((1.0 + nextLane * 0.35).toFixed(2));
-          isWin = true;
-          winAmount = 0; // Not cashed out yet
-          extraData = {
-            cashedOut: false,
-            crashed: false,
-            lane: nextLane,
-            multiplier,
-          };
-        }
-      }
-    }
-
-    // 4. AVIATOR ROYALE CRASH
-    else if (gameUid === "royal_aviator") {
-      gameName = "Aviator Royale Crash";
-      if (aviatorCashoutMult > 0) {
-        multiplier = Number(aviatorCashoutMult.toFixed(2));
-        winAmount = Number((bet * multiplier).toFixed(2));
-        isWin = true;
-        extraData = {
-          multiplier,
-          cashedOut: true,
-        };
-      } else {
-        isWin = false;
-        winAmount = 0;
-        extraData = {
-          multiplier: 0,
-          cashedOut: false,
-        };
-      }
-    }
-
-    // 5. MINES GOLD
-    else if (gameUid === "royal_mines") {
-      gameName = "Mines Gold";
-      if (isMinesCashout) {
-        const safePicks = revealedMinesIndices.length;
-        const calcMult = Number((1 + safePicks * (0.2 + minesCount * 0.08)).toFixed(2));
-        winAmount = Number((bet * calcMult).toFixed(2));
-        isWin = true;
-        extraData = {
-          cashedOut: true,
-          hitBomb: false,
-          multiplier: calcMult,
-        };
-      } else {
-        // Pick tile
-        const totalTiles = 25;
-        const remainingTiles = totalTiles - revealedMinesIndices.length;
-        const hitBombChance = minesCount / remainingTiles;
-        const hitBomb = Math.random() < hitBombChance;
-
-        if (hitBomb) {
-          isWin = false;
-          winAmount = 0;
-          extraData = {
-            hitBomb: true,
-            cashedOut: false,
-            tileIndex: mineTileIndex,
-          };
-        } else {
-          const nextSafeCount = revealedMinesIndices.length + 1;
-          const nextMult = Number((1 + nextSafeCount * (0.2 + minesCount * 0.08)).toFixed(2));
-          isWin = true;
-          winAmount = 0; // ongoing round
-          extraData = {
-            hitBomb: false,
-            cashedOut: false,
-            tileIndex: mineTileIndex,
-            multiplier: nextMult,
-          };
-        }
-      }
-    }
-
-    // 6. EUROPEAN ROULETTE
-    else if (gameUid === "royal_roulette") {
-      gameName = "European Roulette";
-      const winningNumber = Math.floor(Math.random() * 37); // 0 - 36
-      const RED_NUMS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-      const isRed = RED_NUMS.includes(winningNumber);
-      const isBlack = winningNumber !== 0 && !isRed;
-      const isEven = winningNumber !== 0 && winningNumber % 2 === 0;
-      const isOdd = winningNumber !== 0 && winningNumber % 2 !== 0;
-
-      let won = false;
-      if (rouletteBetType === "red" && isRed) {
-        won = true;
-        multiplier = 2.0;
-      } else if (rouletteBetType === "black" && isBlack) {
-        won = true;
-        multiplier = 2.0;
-      } else if (rouletteBetType === "even" && isEven) {
-        won = true;
-        multiplier = 2.0;
-      } else if (rouletteBetType === "odd" && isOdd) {
-        won = true;
-        multiplier = 2.0;
-      } else if (rouletteBetType === `num_${winningNumber}`) {
-        won = true;
-        multiplier = 36.0;
-      }
-
-      isWin = won;
-      winAmount = isWin ? Number((bet * multiplier).toFixed(2)) : 0;
-      extraData = {
-        winningNumber,
-        isRed,
-        isBlack,
-        multiplier,
-      };
-    }
-
-    // Calculate new balance
-    // For cashout / final round: newBalance = currentBalance - bet + winAmount
-    const newBalance = Number((currentBalance - bet + winAmount).toFixed(2));
-
-    // Settle with royalggr B2B engine
-    const royalggrUrl = process.env.ROYAL_GGR_URL || "http://localhost:3001";
-    let ggrResponseData: any = {};
-
-    try {
-      const ggrRes = await axios.post(`${royalggrUrl}/api/studio/round`, {
-        sessionToken,
-        sessionId,
-        gameUid,
-        gameName,
-        betAmount: bet,
-        winAmount,
-        newPlayerBalance: newBalance,
-        gameRoundInfo: extraData,
+    // Look for matching GameSession in Database
+    let session = null;
+    if (sessionId && sessionId !== "sess_demo") {
+      session = await db.gameSession.findUnique({
+        where: { sessionId },
+        include: {
+          operator: true,
+        },
       });
-      ggrResponseData = ggrRes.data;
-    } catch (ggrErr: any) {
-      console.warn("Could not notify royalggr directly (offline simulation mode active):", ggrErr.message);
+    }
+
+    // If session not found by ID, try token decode
+    if (!session && sessionToken) {
+      const decoded = verifySessionToken(sessionToken);
+      if (decoded?.sessionId) {
+        session = await db.gameSession.findUnique({
+          where: { sessionId: decoded.sessionId },
+          include: { operator: true },
+        });
+      }
+    }
+
+    // Generate unique serial number (Idempotency Key)
+    const serialNumber = `SN_ROYAL_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+
+    let newBalance = 0;
+    let operatorId = session?.operatorId || null;
+    let userId = session?.userId || "player_demo";
+    let callbackUrl = session?.callbackUrl || session?.operator?.callbackUrl || null;
+    let ggrFeeDeducted = 0;
+
+    if (session) {
+      // Calculate authoritative new balance from session
+      newBalance = Number(Math.max(0, session.balance - bet + win).toFixed(2));
+
+      // Update session balance
+      await db.gameSession.update({
+        where: { id: session.id },
+        data: { balance: newBalance },
+      });
+
+      // Calculate GGR Fee (operator revenue share on GGR = Bet - Win)
+      const ggrRate = session.operator?.ggrRate || 10.0;
+      const ggrAmount = bet - win;
+      if (ggrAmount > 0) {
+        ggrFeeDeducted = Number(((ggrAmount * ggrRate) / 100).toFixed(2));
+      }
+
+      // Deduct GGR fee from operator prepaid balance if applicable
+      if (ggrFeeDeducted > 0 && session.operator) {
+        await db.operator.update({
+          where: { id: session.operator.id },
+          data: {
+            balance: {
+              decrement: ggrFeeDeducted,
+            },
+          },
+        });
+      }
+    } else {
+      // Demo / Guest mode
+      newBalance = Number(Math.max(0, currentBalance - bet + win).toFixed(2));
+      
+      // Fallback: If any operator exists in database, link demo rounds to first operator so admin sees activity
+      const firstOperator = await db.operator.findFirst({
+        orderBy: { createdAt: "asc" },
+      });
+      if (firstOperator) {
+        operatorId = firstOperator.id;
+      }
+    }
+
+    // Check if a local user exists with this ID before linking memberAccount foreign key
+    let localUserId: string | null = null;
+    try {
+      const localUser = await db.user.findUnique({ where: { id: userId } });
+      if (localUser) localUserId = localUser.id;
+    } catch {}
+
+    // Record GameRound in database
+    const roundRecord = await db.gameRound.create({
+      data: {
+        serialNumber,
+        sessionId: session?.id || null,
+        operatorId: operatorId || null,
+        userId: userId,
+        memberAccount: localUserId,
+        gameId: gameMeta.game_id,
+        gameUid: gameMeta.game_uid,
+        gameName: gameMeta.name,
+        betAmount: bet,
+        winAmount: win,
+        creditAmount: newBalance,
+        ggrFeeDeducted,
+        rawPayload: JSON.stringify({
+          betAmount: bet,
+          winAmount: win,
+          multiplier: mult,
+          extraData,
+          sessionBalanceBefore: session?.balance ?? currentBalance,
+          sessionBalanceAfter: newBalance,
+        }),
+      },
+    });
+
+    // Dispatch webhook to client casino if callback URL is configured
+    let webhookResult = null;
+    if (callbackUrl) {
+      webhookResult = await dispatchWebhookCallback(
+        operatorId || null,
+        session?.id || null,
+        callbackUrl,
+        {
+          game_id: gameMeta.game_id,
+          game_uid: gameMeta.game_uid,
+          game_round: serialNumber,
+          member_account: userId,
+          bet_amount: bet,
+          win_amount: win,
+          credit_amount: newBalance,
+          serial_number: serialNumber,
+          game_name: gameMeta.name,
+          timestamp: Date.now(),
+        }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      isWin,
+      serialNumber,
       betAmount: bet,
-      winAmount,
-      multiplier,
+      winAmount: win,
+      multiplier: mult,
       newBalance,
-      serialNumber: ggrResponseData?.serialNumber || `SN_SIM_${Date.now()}`,
-      ...extraData,
+      roundId: roundRecord.id,
+      webhookDispatched: !!callbackUrl,
+      webhookSuccess: webhookResult?.success ?? null,
     });
   } catch (err: any) {
     console.error("Studio Round Execution Error:", err);
