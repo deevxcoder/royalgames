@@ -525,24 +525,6 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         crashParticles.length = 0;
       }
 
-      // 10. Countdown Ring Overlay
-      if (gameState === "COUNTDOWN") {
-        ctx.save();
-        ctx.translate(width / 2, height / 2);
-
-        const progress = Math.max(0, Math.min(1.0, countdown / 10.0));
-        ctx.beginPath();
-        ctx.arc(0, 0, 52, -Math.PI / 2, -Math.PI / 2 + (1 - progress) * Math.PI * 2, false);
-        ctx.strokeStyle = "#f59e0b";
-        ctx.lineWidth = 4;
-        ctx.shadowColor = "#f59e0b";
-        ctx.shadowBlur = 14;
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-
-        ctx.restore();
-      }
-
       ctx.restore();
       animationFrameId = requestAnimationFrame(render);
     };
@@ -583,13 +565,44 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         </div>
       )}
 
-      {/* Countdown Overlay */}
+      {/* Countdown Overlay with Concentric Perfectly Aligned Glow Ring */}
       {gameState === "COUNTDOWN" && (
         <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-3 pointer-events-none">
-          <div className="w-24 h-24 rounded-full bg-[#0d1322]/80 border border-amber-500/40 flex flex-col items-center justify-center shadow-xl shadow-amber-500/20 backdrop-blur-md">
-            <span className="text-2xl font-black font-mono text-amber-400">{countdown.toFixed(1)}s</span>
-            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">PREPARING</span>
+          <div className="relative w-28 h-28 flex items-center justify-center">
+            {/* SVG Animated Glow Progress Ring */}
+            <svg className="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+              <circle
+                cx="50"
+                cy="50"
+                r="44"
+                className="text-slate-800/80 stroke-current"
+                strokeWidth="4"
+                fill="none"
+              />
+              <circle
+                cx="50"
+                cy="50"
+                r="44"
+                stroke="#f59e0b"
+                strokeWidth="4"
+                strokeDasharray={276.46}
+                strokeDashoffset={276.46 * (1 - Math.max(0, Math.min(10, countdown)) / 10.0)}
+                strokeLinecap="round"
+                fill="none"
+                style={{
+                  filter: "drop-shadow(0 0 8px rgba(245, 158, 11, 0.8))",
+                  transition: "stroke-dashoffset 80ms linear",
+                }}
+              />
+            </svg>
+
+            {/* Perfectly Centered Badge */}
+            <div className="w-20 h-20 rounded-full bg-[#0d1322]/90 border border-amber-500/40 flex flex-col items-center justify-center shadow-xl shadow-amber-500/20 backdrop-blur-md z-10">
+              <span className="text-2xl font-black font-mono text-amber-400">{countdown.toFixed(1)}s</span>
+              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">PREPARING</span>
+            </div>
           </div>
+
           <p className="text-xs font-bold text-gray-300 tracking-wide uppercase">
             Next Flight Departure In Progress
           </p>
