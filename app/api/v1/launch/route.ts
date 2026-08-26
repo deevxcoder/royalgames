@@ -110,7 +110,8 @@ export async function POST(req: NextRequest) {
       gameUid: sessionRecord.gameUid,
     });
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002";
+    const origin = req.nextUrl?.origin || (req.headers.get("host") ? `http://${req.headers.get("host")}` : null);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin || "http://localhost:3000";
     const launchUrl = `${appUrl}/play/${sessionRecord.sessionId}?token=${sessionJwt}&game=${selectedGameUid}&returnUrl=${encodeURIComponent(
       return_url
     )}`;
