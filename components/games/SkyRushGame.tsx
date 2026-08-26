@@ -191,6 +191,9 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
   const currentRoundIdRef = useRef<string>("");
   const activePhaseRef = useRef<string>("");
   const serverOffsetRef = useRef<number>(0);
+  const settledRoundsRef = useRef<Set<string>>(new Set());
+  const deductedRoundsRef = useRef<Set<string>>(new Set());
+  const cashedPassengerIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let isMounted = true;
@@ -205,20 +208,24 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
         const fetchEnd = Date.now();
         if (!isMounted || !data.success) return;
 
-        // Calculate NTP-style time offset between server clock and local client clock
+        // Smooth Exponential Moving Average for server clock offset to prevent visual jitter
         const roundTrip = fetchEnd - fetchStart;
         const estimatedServerNow = data.serverTime + Math.floor(roundTrip / 2);
-        serverOffsetRef.current = estimatedServerNow - fetchEnd;
+        const newOffset = estimatedServerNow - fetchEnd;
+        serverOffsetRef.current =
+          serverOffsetRef.current === 0
+            ? newOffset
+            : Math.round(serverOffsetRef.current * 0.8 + newOffset * 0.2);
 
         serverStateRef.current = data;
         setIsReady(true);
 
-        // Check for round / phase changes
         const isNewRound = currentRoundIdRef.current !== data.roundId;
         const isNewPhase = activePhaseRef.current !== data.phase;
 
         if (isNewRound || !plannedPassengersRef.current.length) {
           currentRoundIdRef.current = data.roundId;
+          cashedPassengerIdsRef.current.clear();
           const planned = createPlannedPassengers(data.roundId, data.crashMultiplier || 2.0);
           plannedPassengersRef.current = planned;
           setLivePlayers(planned);
@@ -247,19 +254,22 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
             setCrashMultiplier(data.crashMultiplier || 2.0);
             sound.startJetEngine();
 
-            // Deduct placed bets on takeoff
-            const p1AtStart = panel1Ref.current;
-            const p2AtStart = panel2Ref.current;
-            const bal = playerBalanceRef.current;
-            let deduction = 0;
-            if (p1AtStart.isBetPlaced && !p1AtStart.hasCashedOut && bal >= p1AtStart.amount) {
-              deduction += p1AtStart.amount;
-            }
-            if (p2AtStart.isBetPlaced && !p2AtStart.hasCashedOut && bal >= deduction + p2AtStart.amount) {
-              deduction += p2AtStart.amount;
-            }
-            if (deduction > 0) {
-              onUpdateBalance(bal - deduction);
+            // Deduct placed bets on takeoff ONCE per roundId
+            if (!deductedRoundsRef.current.has(data.roundId)) {
+              deductedRoundsRef.current.add(data.roundId);
+              const p1AtStart = panel1Ref.current;
+              const p2AtStart = panel2Ref.current;
+              const bal = playerBalanceRef.current;
+              let deduction = 0;
+              if (p1AtStart.isBetPlaced && !p1AtStart.hasCashedOut && bal >= p1AtStart.amount) {
+                deduction += p1AtStart.amount;
+              }
+              if (p2AtStart.isBetPlaced && !p2AtStart.hasCashedOut && bal >= deduction + p2AtStart.amount) {
+                deduction += p2AtStart.amount;
+              }
+              if (deduction > 0) {
+                onUpdateBalance(bal - deduction);
+              }
             }
           } else if (data.phase === "CRASHED") {
             setGameState("CRASHED");
@@ -269,25 +279,28 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
               setFlightHistory(data.history.slice(0, 12));
             }
 
-            // Record round loss for uncashed bets
-            const p1 = panel1Ref.current;
-            const p2 = panel2Ref.current;
-            if (p1.isBetPlaced && !p1.hasCashedOut && onRecordRound) {
-              onRecordRound({ bet: p1.amount, win: 0, multiplier: data.crashMultiplier });
-            }
-            if (p2.isBetPlaced && !p2.hasCashedOut && onRecordRound) {
-              onRecordRound({ bet: p2.amount, win: 0, multiplier: data.crashMultiplier });
-            }
+            // Record round loss for uncashed bets ONCE per roundId
+            if (!settledRoundsRef.current.has(data.roundId)) {
+              settledRoundsRef.current.add(data.roundId);
+              const p1 = panel1Ref.current;
+              const p2 = panel2Ref.current;
+              if (p1.isBetPlaced && !p1.hasCashedOut && onRecordRound) {
+                onRecordRound({ bet: p1.amount, win: 0, multiplier: data.crashMultiplier });
+              }
+              if (p2.isBetPlaced && !p2.hasCashedOut && onRecordRound) {
+                onRecordRound({ bet: p2.amount, win: 0, multiplier: data.crashMultiplier });
+              }
 
-            setPanel1((prev) => ({ ...prev, isBetPlaced: false }));
-            setPanel2((prev) => ({ ...prev, isBetPlaced: false }));
+              setPanel1((prev) => ({ ...prev, isBetPlaced: false }));
+              setPanel2((prev) => ({ ...prev, isBetPlaced: false }));
+            }
           }
         }
       } catch (e) {}
     };
 
     pollServerState();
-    const interval = setInterval(pollServerState, 200);
+    const interval = setInterval(pollServerState, 150);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -311,35 +324,49 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
         setMultiplier(currentMult);
         sound.updateJetPitch(currentMult);
 
-        // Check Passenger Cashouts with synchronized event identifiers
-        setLivePlayers((prev) => {
-          return prev.map((p) => {
-            if (!p.cashedOutAt && p.plannedCashout <= currentMult && currentMult < serverState.crashMultiplier) {
-              const win = Math.round(p.bet * currentMult);
-              setCashoutEvents((prevJumps) => [
-                ...prevJumps,
-                {
-                  id: `jump_${p.id}_${p.plannedCashout}`,
-                  user: p.user,
-                  amount: win,
-                  multiplier: currentMult,
-                  timestamp: Date.now(),
-                },
-              ]);
-              setCashoutToasts((t) => [
-                {
-                  id: `toast_${p.id}_${p.plannedCashout}`,
-                  user: p.user,
-                  amount: win,
-                  multiplier: currentMult,
-                },
-                ...t.slice(0, 2),
-              ]);
-              return { ...p, cashedOutAt: currentMult, winAmount: win, justCashedOut: true };
-            }
-            return p;
-          });
+        // Check Passenger Cashouts efficiently without cascading re-renders
+        const newJumps: JumpPassengerEvent[] = [];
+        const newToasts: CashoutToast[] = [];
+        let hasPlayerUpdates = false;
+
+        plannedPassengersRef.current.forEach((p) => {
+          if (!cashedPassengerIdsRef.current.has(p.id) && p.plannedCashout <= currentMult && currentMult < serverState.crashMultiplier) {
+            cashedPassengerIdsRef.current.add(p.id);
+            const win = Math.round(p.bet * currentMult);
+            hasPlayerUpdates = true;
+
+            newJumps.push({
+              id: `jump_${p.id}_${p.plannedCashout}`,
+              user: p.user,
+              amount: win,
+              multiplier: currentMult,
+              timestamp: Date.now(),
+            });
+
+            newToasts.push({
+              id: `toast_${p.id}_${p.plannedCashout}`,
+              user: p.user,
+              amount: win,
+              multiplier: currentMult,
+            });
+          }
         });
+
+        if (newJumps.length > 0) {
+          setCashoutEvents((prev) => [...prev, ...newJumps]);
+        }
+        if (newToasts.length > 0) {
+          setCashoutToasts((prev) => [...newToasts, ...prev].slice(0, 3));
+        }
+        if (hasPlayerUpdates) {
+          setLivePlayers((prev) =>
+            prev.map((p) =>
+              cashedPassengerIdsRef.current.has(p.id)
+                ? { ...p, cashedOutAt: p.plannedCashout, winAmount: Math.round(p.bet * p.plannedCashout), justCashedOut: true }
+                : p
+            )
+          );
+        }
 
         // Check Auto-Cashouts for Panel 1 & Panel 2
         const p1 = panel1Ref.current;
@@ -371,8 +398,10 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
         const timeLeft = Number((remainingMs / 1000).toFixed(1));
         setCountdown(timeLeft);
         setMultiplier(1.0);
+      } else if (serverState.phase === "CRASHED") {
+        setMultiplier(serverState.crashMultiplier);
       }
-    }, 35);
+    }, 33);
 
     return () => clearInterval(animLoop);
   }, []);

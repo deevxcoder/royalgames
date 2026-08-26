@@ -65,6 +65,8 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
 
   const serverOffsetRef = useRef<number>(0);
+  const settledRoundsRef = useRef<Set<string>>(new Set());
+  const deductedRoundsRef = useRef<Set<string>>(new Set());
 
   // Real-Time Server State Synchronizer
   useEffect(() => {
@@ -80,10 +82,14 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
         const fetchEnd = Date.now();
         if (!isMounted || !data.success) return;
 
-        // Calculate NTP-style time offset
+        // Smooth Exponential Moving Average for server clock offset
         const roundTrip = fetchEnd - fetchStart;
         const estimatedServerNow = data.serverTime + Math.floor(roundTrip / 2);
-        serverOffsetRef.current = estimatedServerNow - fetchEnd;
+        const newOffset = estimatedServerNow - fetchEnd;
+        serverOffsetRef.current =
+          serverOffsetRef.current === 0
+            ? newOffset
+            : Math.round(serverOffsetRef.current * 0.8 + newOffset * 0.2);
 
         serverStateRef.current = data;
         setIsReady(true);
@@ -109,12 +115,15 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
             setCrashMultiplier(data.crashMultiplier || 2.5);
             sound.startJetEngine();
 
-            // Deduct placed bet on ball strike
-            const placed = isBetPlacedRef.current;
-            const bet = betAmountRef.current;
-            const bal = playerBalanceRef.current;
-            if (placed && bal >= bet) {
-              onUpdateBalance(bal - bet);
+            // Deduct placed bet on ball strike ONCE per roundId
+            if (!deductedRoundsRef.current.has(data.roundId)) {
+              deductedRoundsRef.current.add(data.roundId);
+              const placed = isBetPlacedRef.current;
+              const bet = betAmountRef.current;
+              const bal = playerBalanceRef.current;
+              if (placed && bal >= bet) {
+                onUpdateBalance(bal - bet);
+              }
             }
           } else if (data.phase === "CRASHED") {
             setGameState("CAUGHT");
@@ -124,20 +133,23 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
               setShotHistory(data.history.slice(0, 9));
             }
 
-            // Record loss for un-cashed bets
-            if (isBetPlacedRef.current && !hasCashedOutRef.current) {
-              if (onRecordRound) {
-                onRecordRound({ bet: betAmountRef.current, win: 0, multiplier: data.crashMultiplier });
+            // Record loss for un-cashed bets ONCE per roundId
+            if (!settledRoundsRef.current.has(data.roundId)) {
+              settledRoundsRef.current.add(data.roundId);
+              if (isBetPlacedRef.current && !hasCashedOutRef.current) {
+                if (onRecordRound) {
+                  onRecordRound({ bet: betAmountRef.current, win: 0, multiplier: data.crashMultiplier });
+                }
               }
+              setIsBetPlaced(false);
             }
-            setIsBetPlaced(false);
           }
         }
       } catch (e) {}
     };
 
     pollServerState();
-    const interval = setInterval(pollServerState, 200);
+    const interval = setInterval(pollServerState, 150);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -178,8 +190,10 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
         const timeLeft = Number((remainingMs / 1000).toFixed(1));
         setCountdown(timeLeft);
         setMultiplier(1.0);
+      } else if (serverState.phase === "CRASHED") {
+        setMultiplier(serverState.crashMultiplier);
       }
-    }, 35);
+    }, 33);
 
     return () => clearInterval(animLoop);
   }, []);
