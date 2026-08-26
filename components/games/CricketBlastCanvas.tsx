@@ -232,13 +232,22 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
         ctx.save();
         ctx.translate(bowlerRunX, creaseY);
 
-        // Bowler Head (Cap)
-        ctx.fillStyle = "#dc2626";
+        // Bowler Head & Cap (Distinct Emerald Green & Visor, no red clash with ball)
+        ctx.fillStyle = "#fed7aa"; // Skin face
         ctx.beginPath();
-        ctx.arc(0, -32, 6, 0, Math.PI * 2);
+        ctx.arc(0, -31, 5.5, 0, Math.PI * 2);
         ctx.fill();
 
-        // Bowler Jersey (Red/Navy)
+        // Bowler Green Cricket Cap
+        ctx.fillStyle = "#059669";
+        ctx.beginPath();
+        ctx.arc(0, -33, 5.8, Math.PI, Math.PI * 2);
+        ctx.fill();
+        // Cap Visor pointing left towards pitch
+        ctx.fillStyle = "#047857";
+        ctx.fillRect(-7, -33, 5, 2.5);
+
+        // Bowler Jersey (Navy Blue)
         ctx.fillStyle = "#1e3a8a";
         ctx.beginPath();
         ctx.moveTo(-4, -26);
