@@ -171,37 +171,50 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
       ctx.fillRect(0, height - 55, width, 55);
 
       // Pitch Strip (Brown/Clay)
+      const pitchWidth = Math.max(220, width * 0.42);
       ctx.fillStyle = "#78350f";
-      ctx.fillRect(width * 0.1, height - 42, 140, 18);
+      ctx.fillRect(width * 0.1, height - 42, pitchWidth, 18);
 
       // 5. Batter & Wickets at Crease
       const creaseX = width * 0.16;
       const creaseY = height - 45;
+      const bowlerStartX = creaseX + Math.min(220, width * 0.35);
 
       // 3 Wickets Behind Batter
       ctx.fillStyle = "#fef08a";
       for (let s = -4; s <= 4; s += 4) {
         ctx.fillRect(creaseX - 22 + s, creaseY - 24, 2, 24);
       }
+      // Bails on top of stumps
+      ctx.fillRect(creaseX - 24, creaseY - 26, 12, 2);
 
-      // Calculate Strike Timeline
-      const timeSinceAirborne = airborneStartTimeRef.current ? (Date.now() - airborneStartTimeRef.current) / 1000 : 0;
-      const isDeliveryPhase = gameState === "AIRBORNE" && timeSinceAirborne < 0.35;
-      const isHitMoment = gameState === "AIRBORNE" && timeSinceAirborne >= 0.35 && timeSinceAirborne < 0.45;
-      const isFlightPhase = gameState === "AIRBORNE" && timeSinceAirborne >= 0.35;
+      // 3 Wickets at Bowler End
+      ctx.fillStyle = "#fef08a";
+      for (let s = -4; s <= 4; s += 4) {
+        ctx.fillRect(bowlerStartX + 18 + s, creaseY - 24, 2, 24);
+      }
 
-      // Trigger bat crack sound at impact
-      if (isHitMoment && !batSoundTriggeredRef.current) {
+      // Timing calculations for delivery and strike
+      const currentCountdown = countdownRef.current;
+      const isDeliveryRunning = currentGameState === "PREPARING" && currentCountdown <= 1.8;
+      const deliveryProgress = isDeliveryRunning
+        ? Math.min(1.0, Math.max(0, (1.8 - currentCountdown) / 1.8))
+        : currentGameState === "PREPARING"
+        ? 0
+        : 1.0;
+
+      // Trigger bat impact sound & spark burst at transition to AIRBORNE
+      if (currentGameState === "AIRBORNE" && !batSoundTriggeredRef.current) {
         batSoundTriggeredRef.current = true;
         sound.playBatCrack();
 
-        // Spawn golden impact spark burst
-        for (let i = 0; i < 25; i++) {
-          const dir = Math.random() * Math.PI * 2;
-          const spd = Math.random() * 7 + 3;
+        // Spawn golden impact spark burst from bat contact point
+        for (let i = 0; i < 35; i++) {
+          const dir = (Math.random() - 0.5) * Math.PI - Math.PI / 4; // directed towards top right
+          const spd = Math.random() * 8 + 3;
           hitSparks.push({
             x: creaseX + 14,
-            y: creaseY - 18,
+            y: creaseY - 22,
             vx: Math.cos(dir) * spd,
             vy: Math.sin(dir) * spd,
             life: 1.0,
@@ -210,7 +223,50 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
         }
       }
 
-      // 6. Draw Animated Batter
+      // 6. Draw Bowler at Non-Striker End
+      if (currentGameState === "PREPARING") {
+        const bowlerRunX = isDeliveryRunning
+          ? bowlerStartX - (deliveryProgress * 40)
+          : bowlerStartX;
+
+        ctx.save();
+        ctx.translate(bowlerRunX, creaseY);
+
+        // Bowler Head (Cap)
+        ctx.fillStyle = "#dc2626";
+        ctx.beginPath();
+        ctx.arc(0, -32, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Bowler Jersey (Red/Navy)
+        ctx.fillStyle = "#1e3a8a";
+        ctx.beginPath();
+        ctx.moveTo(-4, -26);
+        ctx.lineTo(4, -26);
+        ctx.lineTo(5, -10);
+        ctx.lineTo(-5, -10);
+        ctx.closePath();
+        ctx.fill();
+
+        // Bowler Legs (Running stride)
+        const legStride = isDeliveryRunning ? Math.sin(deliveryProgress * Math.PI * 6) * 6 : 0;
+        ctx.fillStyle = "#e2e8f0";
+        ctx.fillRect(-5, -10, 4, 12 + legStride);
+        ctx.fillRect(1, -10, 4, 12 - legStride);
+
+        // Bowling Arm Rotation
+        const armAngle = isDeliveryRunning ? -Math.PI / 2 + deliveryProgress * Math.PI * 1.8 : 0.8;
+        ctx.save();
+        ctx.translate(2, -22);
+        ctx.rotate(armAngle);
+        ctx.fillStyle = "#1e3a8a";
+        ctx.fillRect(-2, 0, 4, 16);
+        ctx.restore();
+
+        ctx.restore();
+      }
+
+      // 7. Draw Animated Batter
       ctx.save();
       ctx.translate(creaseX, creaseY);
 
@@ -238,15 +294,16 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
       // Batter Bat Swing Motion
       let batAngle = 0.3; // Default stance
       if (currentGameState === "PREPARING") {
-        // Tapping bat on ground
-        batAngle = 0.3 + Math.sin(time * 8) * 0.12;
-      } else if (isDeliveryPhase) {
-        // Backswing loading power
-        const swingProgress = timeSinceAirborne / 0.35;
-        batAngle = 0.3 - swingProgress * 1.4; // Loads up to -1.1 rad
-      } else if (isFlightPhase || currentGameState === "CAUGHT") {
-        // Follow-through high finish
-        batAngle = -1.2;
+        if (isDeliveryRunning) {
+          // Raising bat in powerful backswing
+          batAngle = 0.3 - deliveryProgress * 1.5;
+        } else {
+          // Tapping bat on ground
+          batAngle = 0.3 + Math.sin(time * 8) * 0.12;
+        }
+      } else if (currentGameState === "AIRBORNE" || currentGameState === "CAUGHT") {
+        // High follow-through helicopter six pose!
+        batAngle = -1.35;
       }
 
       ctx.save();
@@ -254,54 +311,69 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
       ctx.rotate(batAngle);
       ctx.fillStyle = "#b45309";
       ctx.fillRect(0, -22, 4.5, 26);
+      // Bat rubber grip
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, 4.5, 6);
       ctx.restore();
 
       ctx.restore();
 
-      // 7. Draw Ball Position & Motion
-      let ballX = creaseX + 120;
-      let ballY = creaseY - 20;
+      // 8. Calculate Ball Position & Flight Dynamics
+      let ballX = bowlerStartX;
+      let ballY = creaseY - 22;
 
       if (currentGameState === "PREPARING") {
-        // Bowler holding ball at run-up
-        ballX = creaseX + 120;
-        ballY = creaseY - 14;
-      } else if (isDeliveryPhase) {
-        // Bowler delivers ball in towards bat
-        const deliveryProgress = Math.min(1.0, timeSinceAirborne / 0.35);
-        ballX = (creaseX + 120) - ((creaseX + 120) - (creaseX + 14)) * deliveryProgress;
-        // Pitch bounce curve
-        ballY = (creaseY - 20) + Math.sin(deliveryProgress * Math.PI) * 12;
-      } else if (isFlightPhase || currentGameState === "CAUGHT") {
-        // Soaring into the sky from bat contact point!
-        const flightTime = timeSinceAirborne - 0.35;
-        const progress = Math.min(1.0, (Math.log(currentMultiplier) / Math.log(25)) * 0.85 + 0.1);
-        const curveMaxX = width * 0.85;
-        const curveMinY = height * 0.16;
+        if (isDeliveryRunning) {
+          // Ball traveling from bowler to batsman across pitch with realistic bounce
+          const startX = bowlerStartX - 10;
+          const targetX = creaseX + 14;
+          ballX = startX - (startX - targetX) * deliveryProgress;
+          // Pitch bounce parabolic curve (bounces around 60% of pitch)
+          const bounceHeight = deliveryProgress < 0.6
+            ? Math.sin((deliveryProgress / 0.6) * Math.PI) * 14
+            : -Math.sin(((deliveryProgress - 0.6) / 0.4) * Math.PI) * 8;
+          ballY = (creaseY - 22) + bounceHeight;
+        } else {
+          // Ball in bowler's hand
+          ballX = bowlerStartX + 4;
+          ballY = creaseY - 22;
+        }
+      } else if (currentGameState === "AIRBORNE" || currentGameState === "CAUGHT") {
+        // Ball soaring high into the sky from the bat contact point!
+        const hitStartX = creaseX + 14;
+        const hitStartY = creaseY - 22;
+        const curveMaxX = width * 0.88;
+        const curveMinY = height * 0.12;
 
-        ballX = (creaseX + 14) + (curveMaxX - (creaseX + 14)) * Math.pow(progress, 0.75);
-        ballY = (creaseY - 20) - ((creaseY - 20) - curveMinY) * Math.pow(progress, 1.25);
+        // Smooth logarithmic progress based on multiplier ascent
+        const progress = Math.min(
+          1.0,
+          (Math.log(Math.max(1.0, currentMultiplier)) / Math.log(Math.max(2.0, currentCrashMult))) * 0.88 + 0.08
+        );
 
-        // Spawn golden fire tracer particles
+        ballX = hitStartX + (curveMaxX - hitStartX) * Math.pow(progress, 0.72);
+        ballY = hitStartY - (hitStartY - curveMinY) * Math.pow(progress, 1.15);
+
+        // Spawn golden rocket fire tracer particles while in flight
         if (currentGameState === "AIRBORNE") {
-          for (let i = 0; i < 3; i++) {
+          for (let i = 0; i < 4; i++) {
             ballTrail.push({
               x: ballX + (Math.random() - 0.5) * 4,
               y: ballY + (Math.random() - 0.5) * 4,
-              size: Math.random() * 5 + 2,
+              size: Math.random() * 5 + 2.5,
               life: 1.0,
-              color: Math.random() > 0.3 ? "#f59e0b" : "#f43f5e",
+              color: Math.random() > 0.35 ? "#f59e0b" : "#f43f5e",
             });
           }
         }
       }
 
-      // Draw Flight Parabolic Trajectory Arc
-      if (isFlightPhase || currentGameState === "CAUGHT") {
+      // Draw Flight Parabolic Trajectory Arc from Bat to Ball
+      if (currentGameState === "AIRBORNE" || currentGameState === "CAUGHT") {
         ctx.beginPath();
-        ctx.moveTo(creaseX + 14, creaseY - 20);
-        ctx.quadraticCurveTo((creaseX + ballX) / 2, ballY - 20, ballX, ballY);
-        ctx.strokeStyle = currentGameState === "CAUGHT" ? "rgba(244, 63, 94, 0.6)" : "rgba(245, 158, 11, 0.7)";
+        ctx.moveTo(creaseX + 14, creaseY - 22);
+        ctx.quadraticCurveTo((creaseX + ballX) / 2, ballY - 25, ballX, ballY);
+        ctx.strokeStyle = currentGameState === "CAUGHT" ? "rgba(244, 63, 94, 0.6)" : "rgba(245, 158, 11, 0.75)";
         ctx.lineWidth = 3;
         ctx.setLineDash([6, 4]);
         ctx.stroke();
@@ -311,8 +383,8 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
       // Draw Ball Trail Particles
       for (let i = ballTrail.length - 1; i >= 0; i--) {
         const p = ballTrail[i];
-        p.life -= 0.04;
-        p.size *= 0.95;
+        p.life -= 0.035;
+        p.size *= 0.94;
 
         if (p.life <= 0) {
           ballTrail.splice(i, 1);
@@ -332,7 +404,7 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
         const sp = hitSparks[i];
         sp.x += sp.vx;
         sp.y += sp.vy;
-        sp.life -= 0.04;
+        sp.life -= 0.035;
 
         if (sp.life <= 0) {
           hitSparks.splice(i, 1);
@@ -348,32 +420,32 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
         ctx.shadowBlur = 0;
       }
 
-      // 8. Draw Cricket Ball (Red leather with spinning seam)
+      // 9. Draw Cricket Ball (Red leather with spinning white seam)
       if (currentGameState !== "CAUGHT") {
         ctx.save();
         ctx.translate(ballX, ballY);
-        ctx.rotate(time * (isFlightPhase ? 20 : 8));
+        ctx.rotate(time * (currentGameState === "AIRBORNE" ? 22 : 6));
 
-        ctx.shadowColor = isFlightPhase ? "#f59e0b" : "#f43f5e";
-        ctx.shadowBlur = isFlightPhase ? 14 : 6;
+        ctx.shadowColor = currentGameState === "AIRBORNE" ? "#f59e0b" : "#f43f5e";
+        ctx.shadowBlur = currentGameState === "AIRBORNE" ? 16 : 6;
 
-        // Red Leather Ball
+        // Red Leather Cricket Ball
         ctx.fillStyle = "#e11d48";
         ctx.beginPath();
-        ctx.arc(0, 0, 7, 0, Math.PI * 2);
+        ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
         ctx.fill();
 
-        // White Seam Stitch
+        // White Seam Stitching
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.arc(0, 0, 7, -Math.PI / 2, Math.PI / 2);
+        ctx.arc(0, 0, 7.5, -Math.PI / 2, Math.PI / 2);
         ctx.stroke();
 
         ctx.restore();
       }
 
-      // 9. Caught Out Event Particles
+      // 10. Caught Out Event Particles
       if (currentGameState === "CAUGHT") {
         if (catchParticles.length === 0) {
           for (let i = 0; i < 35; i++) {
