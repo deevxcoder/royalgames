@@ -1,5 +1,5 @@
-// Global Server-Side Authoritative Crash Engine for Sky Rush & Cricket Blast
-// Synchronizes rounds, multipliers, countdowns, and crash events across all B2B clients in real-time.
+// Global Server-Side Authoritative Deterministic Crash Engine for Sky Rush & Cricket Blast
+// Pure Epoch Mathematics ensures 100% synchronization across all serverless lambda instances, edge nodes, and B2B clients.
 
 export type CrashPhase = "COUNTDOWN" | "FLYING" | "CRASHED";
 
@@ -22,8 +22,7 @@ export interface GlobalCrashState {
   history: number[];
 }
 
-interface InternalGameState {
-  gameUid: string;
+export interface InternalRoundSchedule {
   roundSequence: number;
   roundId: string;
   crashMultiplier: number;
@@ -32,8 +31,10 @@ interface InternalGameState {
   flightStart: number;    // T0 + 10000
   crashTime: number;      // T0 + 10000 + flightDurationMs
   crashedEndTime: number; // crashTime + 3500
-  history: number[];
 }
+
+export const COUNTDOWN_DURATION_MS = 10000; // Exact 10.0 seconds bet window
+export const CRASHED_DURATION_MS = 3500;    // Exact 3.5 seconds post-crash cooldown
 
 // Dynamic RTP configuration storage
 const rtpConfigKey = Symbol.for("royal_games_rtp_config");
@@ -45,23 +46,7 @@ export function setGameRtpConfig(gameUid: string, rtp: number) {
 }
 
 export function getGameRtpConfig(gameUid: string): number {
-  return rtpContainer[gameUid] || 96.5;
-}
-
-// Generate Provably Fair crash multiplier with dynamic RTP
-function generateCrashMultiplier(gameUid: string = "royal_skyrush"): number {
-  const currentRtp = getGameRtpConfig(gameUid);
-  const houseEdgeFraction = Math.max(0.01, (100 - currentRtp) / 100);
-  const rand = Math.random();
-
-  // Instant crash based on house edge fraction
-  if (rand < houseEdgeFraction) return 1.0;
-
-  // Standard Pareto Inverse Distribution calibrated to target RTP
-  const rtpFraction = Math.max(0.8, currentRtp / 100);
-  const raw = (rtpFraction - 0.005) / (1 - rand);
-  const mult = Math.floor(raw * 100) / 100;
-  return Number(Math.min(1000.0, Math.max(1.01, mult)).toFixed(2));
+  return rtpContainer[gameUid] || (gameUid === "royal_cricketblast" ? 97.6 : 97.5);
 }
 
 // Multiplier ascent curve function
@@ -80,131 +65,186 @@ export function calculateFlightDurationSeconds(targetMultiplier: number): number
   return Math.max(1.8, Number(elapsed.toFixed(3)));
 }
 
-// Global in-memory singleton to persist state across hot-reloads and API calls
-const globalEngineKey = Symbol.for("royal_games_crash_engine_state");
-
-interface GlobalEngineContainer {
-  games: Record<string, InternalGameState>;
+// Fast, deterministic 32-bit PRNG (Mulberry32)
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-const globalContainer: GlobalEngineContainer = (globalThis as any)[globalEngineKey] || {
-  games: {},
-};
-(globalThis as any)[globalEngineKey] = globalContainer;
+function getSeedForRound(gameUid: string, hourIndex: number, roundInHour: number): number {
+  let hash = 0;
+  const str = `${gameUid}_h${hourIndex}_r${roundInHour}`;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) || 123456789;
+}
 
-const COUNTDOWN_DURATION_MS = 10000; // 10.0 seconds bet window for synchronized multiplayer
-const CRASHED_DURATION_MS = 3500;    // 3.5 seconds post-crash review
+// Deterministic Provably Fair crash generator for any round sequence
+export function generateDeterministicCrash(
+  gameUid: string,
+  hourIndex: number,
+  roundInHour: number,
+  customRtp?: number
+): number {
+  const currentRtp = customRtp ?? getGameRtpConfig(gameUid);
+  const houseEdgeFraction = Math.max(0.01, (100 - currentRtp) / 100);
+  const seed = getSeedForRound(gameUid, hourIndex, roundInHour);
+  const rand = mulberry32(seed)();
 
-function getOrInitGame(gameUid: string): InternalGameState {
-  const existing = globalContainer.games[gameUid];
-  if (
-    !existing ||
-    typeof existing.crashedEndTime !== "number" ||
-    isNaN(existing.crashedEndTime) ||
-    typeof existing.flightStart !== "number" ||
-    isNaN(existing.flightStart) ||
-    typeof existing.countdownStart !== "number" ||
-    isNaN(existing.countdownStart)
-  ) {
-    const seedCrash = generateCrashMultiplier(gameUid);
-    const flightDurMs = Math.round(calculateFlightDurationSeconds(seedCrash) * 1000);
-    const now = Date.now();
-    const countdownStart = now;
+  // Instant crash based on house edge fraction
+  if (rand < houseEdgeFraction) return 1.0;
+
+  // Standard Pareto Inverse Distribution calibrated to target RTP
+  const rtpFraction = Math.max(0.8, currentRtp / 100);
+  const raw = (rtpFraction - 0.005) / (1 - rand);
+  const mult = Math.floor(raw * 100) / 100;
+  return Number(Math.min(1000.0, Math.max(1.01, mult)).toFixed(2));
+}
+
+// In-memory cache per hour to make lookups virtually 0ms
+const hourScheduleCache: Record<string, { hourIndex: number; rounds: InternalRoundSchedule[] }> = {};
+
+export function computeHourRounds(gameUid: string, hourIndex: number, rtp?: number): InternalRoundSchedule[] {
+  const cacheKey = `${gameUid}_${rtp ?? getGameRtpConfig(gameUid)}`;
+  const cached = hourScheduleCache[cacheKey];
+  if (cached && cached.hourIndex === hourIndex) {
+    return cached.rounds;
+  }
+
+  const hourStart = hourIndex * 3600000;
+  const hourEnd = hourStart + 3600000;
+  const rounds: InternalRoundSchedule[] = [];
+
+  let t = hourStart;
+  let r = 0;
+
+  while (t < hourEnd) {
+    const crashM = generateDeterministicCrash(gameUid, hourIndex, r, rtp);
+    const flightDurMs = Math.round(calculateFlightDurationSeconds(crashM) * 1000);
+    const countdownStart = t;
     const flightStart = countdownStart + COUNTDOWN_DURATION_MS;
     const crashTime = flightStart + flightDurMs;
     const crashedEndTime = crashTime + CRASHED_DURATION_MS;
+    const roundSequence = hourIndex * 1000 + r;
 
-    globalContainer.games[gameUid] = {
-      gameUid,
-      roundSequence: 1000,
-      roundId: `RND_${gameUid.toUpperCase()}_${countdownStart}_1000`,
-      crashMultiplier: seedCrash,
+    rounds.push({
+      roundSequence,
+      roundId: `RND_${gameUid.toUpperCase()}_${countdownStart}_${roundSequence}`,
+      crashMultiplier: crashM,
       flightDurationMs: flightDurMs,
       countdownStart,
       flightStart,
       crashTime,
       crashedEndTime,
-      history: [1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2, 8.45, 1.45, 24.18],
-    };
+    });
+
+    t = crashedEndTime;
+    r++;
   }
-  return globalContainer.games[gameUid];
+
+  hourScheduleCache[cacheKey] = { hourIndex, rounds };
+  return rounds;
 }
 
 // Advance game clock authoritatively and deterministically based on absolute real-time clock
-export function tickAndGetState(gameUid: string): GlobalCrashState {
-  const state = getOrInitGame(gameUid);
-  const now = Date.now();
+export function tickAndGetState(gameUid: string = "royal_skyrush", targetTime?: number): GlobalCrashState {
+  const now = targetTime ?? Date.now();
+  const HOUR_MS = 3600000;
+  const hourIndex = Math.floor(now / HOUR_MS);
 
-  // If time has passed the end of the previous round, seamlessly advance to next round(s)
-  // Maintains an unbroken, synchronized 24/7 global clock across all players
-  while (now >= state.crashedEndTime) {
-    state.roundSequence += 1;
-    state.history = [state.crashMultiplier, ...state.history.slice(0, 19)];
+  const curRounds = computeHourRounds(gameUid, hourIndex);
+  let activeRoundIndex = curRounds.findIndex(
+    (r) => now >= r.countdownStart && now < r.crashedEndTime
+  );
 
-    const newCrash = generateCrashMultiplier(gameUid);
-    const newFlightDurMs = Math.round(calculateFlightDurationSeconds(newCrash) * 1000);
+  let activeRound: InternalRoundSchedule;
+  if (activeRoundIndex !== -1) {
+    activeRound = curRounds[activeRoundIndex];
+  } else {
+    // If exact boundary or past hour end before next hour computes
+    if (now >= curRounds[curRounds.length - 1].crashedEndTime) {
+      const nextHourRounds = computeHourRounds(gameUid, hourIndex + 1);
+      activeRound = nextHourRounds[0] || curRounds[curRounds.length - 1];
+      activeRoundIndex = 0;
+    } else {
+      activeRound = curRounds[0];
+      activeRoundIndex = 0;
+    }
+  }
 
-    const newCountdownStart = state.crashedEndTime;
-    const newFlightStart = newCountdownStart + COUNTDOWN_DURATION_MS;
-    const newCrashTime = newFlightStart + newFlightDurMs;
-    const newCrashedEndTime = newCrashTime + CRASHED_DURATION_MS;
-
-    state.roundId = `RND_${gameUid.toUpperCase()}_${newCountdownStart}_${state.roundSequence}`;
-    state.crashMultiplier = newCrash;
-    state.flightDurationMs = newFlightDurMs;
-    state.countdownStart = newCountdownStart;
-    state.flightStart = newFlightStart;
-    state.crashTime = newCrashTime;
-    state.crashedEndTime = newCrashedEndTime;
+  // Compile history array from recent completed rounds
+  const history: number[] = [];
+  // 1. Collect from current hour preceding rounds
+  for (let i = activeRoundIndex - 1; i >= 0 && history.length < 20; i--) {
+    history.push(curRounds[i].crashMultiplier);
+  }
+  // 2. If needed, supplement from previous hour rounds
+  if (history.length < 20 && hourIndex > 0) {
+    const prevHourRounds = computeHourRounds(gameUid, hourIndex - 1);
+    for (let i = prevHourRounds.length - 1; i >= 0 && history.length < 20; i--) {
+      history.push(prevHourRounds[i].crashMultiplier);
+    }
+  }
+  // Fallback defaults if beginning of epoch
+  if (history.length === 0) {
+    history.push(1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2, 8.45, 1.45, 24.18);
   }
 
   let phase: CrashPhase;
   let currentMultiplier = 1.0;
   let countdownLeft = 0;
-  let phaseStartTime = state.countdownStart;
+  let phaseStartTime = activeRound.countdownStart;
   let flightStartTime: number | null = null;
 
-  if (now < state.flightStart) {
+  if (now < activeRound.flightStart) {
     // In 10.0s COUNTDOWN
     phase = "COUNTDOWN";
-    phaseStartTime = state.countdownStart;
-    const remainingMs = Math.max(0, state.flightStart - now);
+    phaseStartTime = activeRound.countdownStart;
+    const remainingMs = Math.max(0, activeRound.flightStart - now);
     countdownLeft = Number((remainingMs / 1000).toFixed(1));
     currentMultiplier = 1.0;
     flightStartTime = null;
-  } else if (now < state.crashTime) {
+  } else if (now < activeRound.crashTime) {
     // In FLYING
     phase = "FLYING";
-    phaseStartTime = state.flightStart;
-    flightStartTime = state.flightStart;
-    const elapsedSec = (now - state.flightStart) / 1000;
-    currentMultiplier = Number(Math.min(state.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2));
+    phaseStartTime = activeRound.flightStart;
+    flightStartTime = activeRound.flightStart;
+    const elapsedSec = (now - activeRound.flightStart) / 1000;
+    currentMultiplier = Number(
+      Math.min(activeRound.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2)
+    );
     countdownLeft = 0;
   } else {
-    // In CRASHED review
+    // In CRASHED review (3.5s pause)
     phase = "CRASHED";
-    phaseStartTime = state.crashTime;
-    flightStartTime = state.flightStart;
-    currentMultiplier = state.crashMultiplier;
+    phaseStartTime = activeRound.crashTime;
+    flightStartTime = activeRound.flightStart;
+    currentMultiplier = activeRound.crashMultiplier;
     countdownLeft = 0;
   }
 
   return {
-    gameUid: state.gameUid,
-    roundId: state.roundId,
+    gameUid,
+    roundId: activeRound.roundId,
     phase,
     currentMultiplier,
-    crashMultiplier: state.crashMultiplier,
+    crashMultiplier: activeRound.crashMultiplier,
     countdownLeft,
-    flightStartTime,
+    flightStartTime: activeRound.flightStart,
     phaseStartTime,
     serverTime: now,
     countdownTotalMs: COUNTDOWN_DURATION_MS,
     crashedTotalMs: CRASHED_DURATION_MS,
-    flightDurationMs: state.flightDurationMs,
-    flightStart: state.flightStart,
-    crashTime: state.crashTime,
-    crashedEndTime: state.crashedEndTime,
-    history: state.history,
+    flightDurationMs: activeRound.flightDurationMs,
+    flightStart: activeRound.flightStart,
+    crashTime: activeRound.crashTime,
+    crashedEndTime: activeRound.crashedEndTime,
+    history,
   };
 }
