@@ -78,7 +78,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
   // Flight Game State
   const [gameState, setGameState] = useState<"COUNTDOWN" | "FLYING" | "CRASHED">("COUNTDOWN");
   const [multiplier, setMultiplier] = useState(1.0);
-  const [countdown, setCountdown] = useState(4.0);
+  const [countdown, setCountdown] = useState(10.0);
   const [crashMultiplier, setCrashMultiplier] = useState<number>(2.45);
   const [flightHistory, setFlightHistory] = useState<number[]>([1.84, 3.22, 1.12, 14.8, 2.05, 5.6, 1.45, 24.5, 1.02]);
 

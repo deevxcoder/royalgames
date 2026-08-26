@@ -30,7 +30,7 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
 }) => {
   const [gameState, setGameState] = useState<"PREPARING" | "AIRBORNE" | "CAUGHT">("PREPARING");
   const [multiplier, setMultiplier] = useState(1.0);
-  const [countdown, setCountdown] = useState(4.0);
+  const [countdown, setCountdown] = useState(10.0);
   const [crashMultiplier, setCrashMultiplier] = useState<number>(3.5);
   const [shotHistory, setShotHistory] = useState<number[]>([6.4, 1.85, 2.4, 18.2, 1.15, 4.8, 1.02, 12.5]);
 
