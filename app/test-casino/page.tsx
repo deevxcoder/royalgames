@@ -38,6 +38,7 @@ interface WebhookLog {
 }
 
 export default function TestCasinoPage() {
+  const [mounted, setMounted] = useState(false);
   const [selectedGame, setSelectedGame] = useState<string>("royal_skyrush");
   const [viewMode, setViewMode] = useState<"DUAL" | "PLAYER_1" | "PLAYER_2">("DUAL");
 
@@ -62,6 +63,10 @@ export default function TestCasinoPage() {
   // Webhook Logs
   const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
   const [isLogsOpen, setIsLogsOpen] = useState<boolean>(true);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Launch Player 1 Session
   const launchPlayer1 = async () => {
@@ -181,6 +186,17 @@ export default function TestCasinoPage() {
   }, []);
 
   const currentGameMeta = STUDIO_GAMES.find((g) => g.game_uid === selectedGame) || STUDIO_GAMES[0];
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#05070d] text-slate-100 flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-amber-500/40 border-t-amber-500 animate-spin" />
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Loading B2B Testbench...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#05070d] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
