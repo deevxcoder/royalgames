@@ -44,6 +44,29 @@ export async function GET(req: NextRequest) {
 
     if (session) {
       const isExpired = new Date() > new Date(session.expiresAt);
+
+      // Verify if game has been disabled by operator or master admin
+      const isGameDisabled = await db.operatorGameToggle.findFirst({
+        where: {
+          OR: [
+            { operatorId: session.operatorId, isEnabled: false },
+            { operator: { isAdmin: true }, isEnabled: false },
+          ],
+          gameUid: session.gameUid,
+        },
+      });
+
+      if (isGameDisabled) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Game '${session.gameUid}' is currently deactivated by the casino operator.`,
+            isDeactivated: true,
+          },
+          { status: 403 }
+        );
+      }
+
       return NextResponse.json({
         success: true,
         isDemo: false,

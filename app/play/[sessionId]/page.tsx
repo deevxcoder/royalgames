@@ -44,6 +44,8 @@ export default function PlaySessionPage() {
   const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
   const [roundHistory, setRoundHistory] = useState<number[]>([1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2]);
 
+  const [deactivationError, setDeactivationError] = useState<string | null>(null);
+
   // Load Session Info from Database
   useEffect(() => {
     const fetchSession = async () => {
@@ -52,6 +54,10 @@ export default function PlaySessionPage() {
         const urlGame = searchParams.get("game") || "";
         const res = await fetch(`/api/studio/session?sessionId=${sessionId}&token=${token}&game=${urlGame}`);
         const data = await res.json();
+        if (data.isDeactivated || (!data.success && res.status === 403)) {
+          setDeactivationError(data.error || "This game is currently deactivated by the casino operator.");
+          return;
+        }
         if (data.success) {
           if (typeof data.balance === "number") {
             setPlayerBalance(data.balance);
@@ -265,8 +271,25 @@ export default function PlaySessionPage() {
           {/* Ambient Background Glow */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
+          {/* Deactivated Game Notice */}
+          {deactivationError && (
+            <div className="w-full min-h-[450px] flex flex-col items-center justify-center p-8 text-center bg-slate-950/80 border border-rose-500/30 rounded-2xl my-6">
+              <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 text-2xl font-black mb-4">
+                ⛔
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-white mb-2">Game Deactivated</h2>
+              <p className="text-sm text-slate-400 max-w-md mb-6">{deactivationError}</p>
+              <a
+                href={returnUrl}
+                className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all"
+              >
+                Return to Casino Lobby
+              </a>
+            </div>
+          )}
+
           {/* GAME 1: SKY RUSH (Crash Multiplier Jet) */}
-          {activeGame === "royal_skyrush" && (
+          {!deactivationError && activeGame === "royal_skyrush" && (
             <div className="w-full">
               <SkyRushGame
                 playerBalance={playerBalance}
@@ -277,7 +300,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 2: TIGER TRAIL (Step / Jungle River Cashout) */}
-          {activeGame === "royal_tigertrail" && (
+          {!deactivationError && activeGame === "royal_tigertrail" && (
             <div className="w-full">
               <TigerTrailGame
                 playerBalance={playerBalance}
@@ -288,7 +311,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 3: BOMB GRID (5x5 Laser Energy Mines) */}
-          {activeGame === "royal_bombgrid" && (
+          {!deactivationError && activeGame === "royal_bombgrid" && (
             <div className="w-full">
               <BombGridGame
                 playerBalance={playerBalance}
@@ -299,7 +322,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 4: DROP X (60FPS Plinko Multi-Pin Drop) */}
-          {activeGame === "royal_dropx" && (
+          {!deactivationError && activeGame === "royal_dropx" && (
             <div className="w-full">
               <DropXGame
                 playerBalance={playerBalance}
@@ -310,7 +333,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 5: CRICKET BLAST (Night Stadium Crash Hit) */}
-          {activeGame === "royal_cricketblast" && (
+          {!deactivationError && activeGame === "royal_cricketblast" && (
             <div className="w-full">
               <CricketBlastGame
                 playerBalance={playerBalance}
@@ -321,7 +344,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 6: INFINITY X (Quantum Fast Limbo) */}
-          {activeGame === "royal_infinityx" && (
+          {!deactivationError && activeGame === "royal_infinityx" && (
             <div className="w-full">
               <InfinityXGame
                 playerBalance={playerBalance}
@@ -332,7 +355,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 7: TREASURE TOWER (8-Floor Pyramid Risk Tower) */}
-          {activeGame === "royal_treasuretower" && (
+          {!deactivationError && activeGame === "royal_treasuretower" && (
             <div className="w-full">
               <TreasureTowerGame
                 playerBalance={playerBalance}
@@ -343,7 +366,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 8: DICE X (60FPS 3D Probability Dice) */}
-          {activeGame === "royal_dicex" && (
+          {!deactivationError && activeGame === "royal_dicex" && (
             <div className="w-full">
               <DiceXGame
                 playerBalance={playerBalance}
@@ -354,7 +377,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 9: CARD CLIMB (3D Royal Hi-Lo Felt Table) */}
-          {activeGame === "royal_cardclimb" && (
+          {!deactivationError && activeGame === "royal_cardclimb" && (
             <div className="w-full">
               <CardClimbGame
                 playerBalance={playerBalance}
@@ -365,7 +388,7 @@ export default function PlaySessionPage() {
           )}
 
           {/* GAME 10: LUCKY WHEEL X (60FPS Multiplier Wheel) */}
-          {activeGame === "royal_luckywheel" && (
+          {!deactivationError && activeGame === "royal_luckywheel" && (
             <div className="w-full">
               <LuckyWheelGame
                 playerBalance={playerBalance}

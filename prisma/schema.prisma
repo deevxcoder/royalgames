@@ -74,6 +74,7 @@ model SiteSetting {
   returnUrl        String   @default("https://your-domain.com/lobby")
   currency         String   @default("INR")
   enabledProviders String?  // JSON array of enabled brand_ids, e.g. "[57,45,49]". Null = all providers visible.
+  disabledGames    String?  // JSON array of hidden/disabled game_uids e.g. '["royal_skyrush"]'. Null = all games visible.
   updatedAt        DateTime @updatedAt
 
   @@map("site_settings")

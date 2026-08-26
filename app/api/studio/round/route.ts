@@ -60,6 +60,27 @@ export async function POST(req: NextRequest) {
     let ggrFeeDeducted = 0;
 
     if (session) {
+      // Validate game is not deactivated for this operator
+      const isGameDisabled = await db.operatorGameToggle.findFirst({
+        where: {
+          OR: [
+            { operatorId: session.operatorId, isEnabled: false },
+            { operator: { isAdmin: true }, isEnabled: false },
+          ],
+          gameUid,
+        },
+      });
+
+      if (isGameDisabled) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Game '${gameUid}' is deactivated for this operator.`,
+          },
+          { status: 403 }
+        );
+      }
+
       // Calculate authoritative new balance from session
       newBalance = Number(Math.max(0, session.balance - bet + win).toFixed(2));
 
