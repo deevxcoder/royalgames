@@ -14,11 +14,21 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
   gameState,
   multiplier,
   countdown,
-  crashMultiplier,
+  crashMultiplier = 2.5,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const airborneStartTimeRef = useRef<number | null>(null);
   const batSoundTriggeredRef = useRef(false);
+
+  const gameStateRef = useRef(gameState);
+  const multiplierRef = useRef(multiplier);
+  const countdownRef = useRef(countdown);
+  const crashMultiplierRef = useRef(crashMultiplier);
+
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { multiplierRef.current = multiplier; }, [multiplier]);
+  useEffect(() => { countdownRef.current = countdown; }, [countdown]);
+  useEffect(() => { crashMultiplierRef.current = crashMultiplier; }, [crashMultiplier]);
 
   useEffect(() => {
     if (gameState === "AIRBORNE") {
@@ -60,6 +70,10 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
     const render = () => {
       time += 0.025;
 
+      const currentGameState = gameStateRef.current;
+      const currentMultiplier = multiplierRef.current;
+      const currentCrashMult = crashMultiplierRef.current || 2.5;
+
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       const width = rect.width;
@@ -75,14 +89,18 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
 
       // 1. Night Cricket Stadium Sky Gradient
       const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
-      if (gameState === "CAUGHT") {
+      if (currentGameState === "CAUGHT") {
         skyGrad.addColorStop(0, "#1c070d");
         skyGrad.addColorStop(0.6, "#120509");
         skyGrad.addColorStop(1, "#080204");
+      } else if (currentMultiplier > 20) {
+        skyGrad.addColorStop(0, "#081024");
+        skyGrad.addColorStop(0.6, "#050b18");
+        skyGrad.addColorStop(1, "#02040a");
       } else {
-        skyGrad.addColorStop(0, "#050e1f"); // Night stadium dark blue
-        skyGrad.addColorStop(0.5, "#081b36");
-        skyGrad.addColorStop(1, "#030812");
+        skyGrad.addColorStop(0, "#050c1e");
+        skyGrad.addColorStop(0.6, "#040814");
+        skyGrad.addColorStop(1, "#020409");
       }
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, width, height);
@@ -219,14 +237,14 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
 
       // Batter Bat Swing Motion
       let batAngle = 0.3; // Default stance
-      if (gameState === "PREPARING") {
+      if (currentGameState === "PREPARING") {
         // Tapping bat on ground
         batAngle = 0.3 + Math.sin(time * 8) * 0.12;
       } else if (isDeliveryPhase) {
         // Backswing loading power
         const swingProgress = timeSinceAirborne / 0.35;
         batAngle = 0.3 - swingProgress * 1.4; // Loads up to -1.1 rad
-      } else if (isFlightPhase || gameState === "CAUGHT") {
+      } else if (isFlightPhase || currentGameState === "CAUGHT") {
         // Follow-through high finish
         batAngle = -1.2;
       }
@@ -244,7 +262,7 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
       let ballX = creaseX + 120;
       let ballY = creaseY - 20;
 
-      if (gameState === "PREPARING") {
+      if (currentGameState === "PREPARING") {
         // Bowler holding ball at run-up
         ballX = creaseX + 120;
         ballY = creaseY - 14;
@@ -254,10 +272,10 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
         ballX = (creaseX + 120) - ((creaseX + 120) - (creaseX + 14)) * deliveryProgress;
         // Pitch bounce curve
         ballY = (creaseY - 20) + Math.sin(deliveryProgress * Math.PI) * 12;
-      } else if (isFlightPhase || gameState === "CAUGHT") {
+      } else if (isFlightPhase || currentGameState === "CAUGHT") {
         // Soaring into the sky from bat contact point!
         const flightTime = timeSinceAirborne - 0.35;
-        const progress = Math.min(1.0, (Math.log(multiplier) / Math.log(25)) * 0.85 + 0.1);
+        const progress = Math.min(1.0, (Math.log(currentMultiplier) / Math.log(25)) * 0.85 + 0.1);
         const curveMaxX = width * 0.85;
         const curveMinY = height * 0.16;
 
@@ -265,7 +283,7 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
         ballY = (creaseY - 20) - ((creaseY - 20) - curveMinY) * Math.pow(progress, 1.25);
 
         // Spawn golden fire tracer particles
-        if (gameState === "AIRBORNE") {
+        if (currentGameState === "AIRBORNE") {
           for (let i = 0; i < 3; i++) {
             ballTrail.push({
               x: ballX + (Math.random() - 0.5) * 4,
@@ -279,11 +297,11 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
       }
 
       // Draw Flight Parabolic Trajectory Arc
-      if (isFlightPhase || gameState === "CAUGHT") {
+      if (isFlightPhase || currentGameState === "CAUGHT") {
         ctx.beginPath();
         ctx.moveTo(creaseX + 14, creaseY - 20);
         ctx.quadraticCurveTo((creaseX + ballX) / 2, ballY - 20, ballX, ballY);
-        ctx.strokeStyle = gameState === "CAUGHT" ? "rgba(244, 63, 94, 0.6)" : "rgba(245, 158, 11, 0.7)";
+        ctx.strokeStyle = currentGameState === "CAUGHT" ? "rgba(244, 63, 94, 0.6)" : "rgba(245, 158, 11, 0.7)";
         ctx.lineWidth = 3;
         ctx.setLineDash([6, 4]);
         ctx.stroke();
@@ -331,7 +349,7 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
       }
 
       // 8. Draw Cricket Ball (Red leather with spinning seam)
-      if (gameState !== "CAUGHT") {
+      if (currentGameState !== "CAUGHT") {
         ctx.save();
         ctx.translate(ballX, ballY);
         ctx.rotate(time * (isFlightPhase ? 20 : 8));
@@ -356,7 +374,7 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
       }
 
       // 9. Caught Out Event Particles
-      if (gameState === "CAUGHT") {
+      if (currentGameState === "CAUGHT") {
         if (catchParticles.length === 0) {
           for (let i = 0; i < 35; i++) {
             const dir = Math.random() * Math.PI * 2;
@@ -401,7 +419,7 @@ export const CricketBlastCanvas: React.FC<CricketBlastCanvasProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [gameState, multiplier, countdown, crashMultiplier]);
+  }, []);
 
   return (
     <div className="relative w-full h-full min-h-[220px] sm:min-h-[280px] md:min-h-[360px] flex items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl bg-[#030712] border border-amber-500/20 shadow-2xl">

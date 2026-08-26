@@ -135,15 +135,16 @@ export function tickAndGetState(gameUid: string): GlobalCrashState {
   const state = getOrInitGame(gameUid);
   const now = Date.now();
 
-  // If server has been idle for more than 5s past last round, restart cleanly with a FRESH FULL 10.0s countdown
-  if (now > state.crashedEndTime + 5000) {
+  // If time has passed the end of the previous round, seamlessly advance to next round(s)
+  // Maintains an unbroken, synchronized 24/7 global clock across all players
+  while (now >= state.crashedEndTime) {
     state.roundSequence += 1;
     state.history = [state.crashMultiplier, ...state.history.slice(0, 19)];
 
     const newCrash = generateCrashMultiplier(gameUid);
     const newFlightDurMs = Math.round(calculateFlightDurationSeconds(newCrash) * 1000);
 
-    const newCountdownStart = now;
+    const newCountdownStart = state.crashedEndTime;
     const newFlightStart = newCountdownStart + COUNTDOWN_DURATION_MS;
     const newCrashTime = newFlightStart + newFlightDurMs;
     const newCrashedEndTime = newCrashTime + CRASHED_DURATION_MS;
@@ -155,28 +156,6 @@ export function tickAndGetState(gameUid: string): GlobalCrashState {
     state.flightStart = newFlightStart;
     state.crashTime = newCrashTime;
     state.crashedEndTime = newCrashedEndTime;
-  } else {
-    // If time has passed the end of the previous round, seamlessly advance to next round(s)
-    while (now >= state.crashedEndTime) {
-      state.roundSequence += 1;
-      state.history = [state.crashMultiplier, ...state.history.slice(0, 19)];
-
-      const newCrash = generateCrashMultiplier(gameUid);
-      const newFlightDurMs = Math.round(calculateFlightDurationSeconds(newCrash) * 1000);
-
-      const newCountdownStart = state.crashedEndTime;
-      const newFlightStart = newCountdownStart + COUNTDOWN_DURATION_MS;
-      const newCrashTime = newFlightStart + newFlightDurMs;
-      const newCrashedEndTime = newCrashTime + CRASHED_DURATION_MS;
-
-      state.roundId = `RND_${gameUid.toUpperCase()}_${newCountdownStart}_${state.roundSequence}`;
-      state.crashMultiplier = newCrash;
-      state.flightDurationMs = newFlightDurMs;
-      state.countdownStart = newCountdownStart;
-      state.flightStart = newFlightStart;
-      state.crashTime = newCrashTime;
-      state.crashedEndTime = newCrashedEndTime;
-    }
   }
 
   let phase: CrashPhase;

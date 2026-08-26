@@ -321,7 +321,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
           Math.min(serverState.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2)
         );
 
-        setMultiplier(currentMult);
+        setMultiplier((prev) => (prev !== currentMult ? currentMult : prev));
         sound.updateJetPitch(currentMult);
 
         // Check Passenger Cashouts efficiently without cascading re-renders
@@ -396,10 +396,11 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
         const flightStartTime = serverState.flightStart || (serverState.phaseStartTime + (serverState.countdownTotalMs || 10000));
         const remainingMs = Math.max(0, flightStartTime - accurateServerNow);
         const timeLeft = Number((remainingMs / 1000).toFixed(1));
-        setCountdown(timeLeft);
-        setMultiplier(1.0);
+        setCountdown((prev) => (prev !== timeLeft ? timeLeft : prev));
+        setMultiplier((prev) => (prev !== 1.0 ? 1.0 : prev));
       } else if (serverState.phase === "CRASHED") {
-        setMultiplier(serverState.crashMultiplier);
+        const crashM = serverState.crashMultiplier || 1.0;
+        setMultiplier((prev) => (prev !== crashM ? crashM : prev));
       }
     }, 33);
 

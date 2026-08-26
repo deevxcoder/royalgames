@@ -37,12 +37,23 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
   gameState,
   multiplier,
   countdown,
-  crashMultiplier,
+  crashMultiplier = 2.0,
   cashoutEvents = [],
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const activeJumpersRef = useRef<Jumper[]>([]);
   const handledEventIdsRef = useRef<Set<string>>(new Set());
+
+  // Store current props in refs so 60FPS render loop reads latest values without re-mounting
+  const gameStateRef = useRef(gameState);
+  const multiplierRef = useRef(multiplier);
+  const countdownRef = useRef(countdown);
+  const crashMultiplierRef = useRef(crashMultiplier);
+
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { multiplierRef.current = multiplier; }, [multiplier]);
+  useEffect(() => { countdownRef.current = countdown; }, [countdown]);
+  useEffect(() => { crashMultiplierRef.current = crashMultiplier; }, [crashMultiplier]);
 
   // Store current jet position in ref for jumper spawn
   const currentJetPosRef = useRef<{ x: number; y: number; angle: number }>({ x: 50, y: 300, angle: -0.35 });
@@ -114,6 +125,10 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
     const render = () => {
       time += 0.02;
 
+      const currentGameState = gameStateRef.current;
+      const currentMultiplier = multiplierRef.current;
+      const currentCrashMult = crashMultiplierRef.current || 2.0;
+
       // Handle Resize
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -130,15 +145,15 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
 
       // 1. Background Sky Atmosphere Gradient
       const grad = ctx.createLinearGradient(0, 0, 0, height);
-      if (gameState === "CRASHED") {
+      if (currentGameState === "CRASHED") {
         grad.addColorStop(0, "#1a080c");
         grad.addColorStop(0.6, "#120508");
         grad.addColorStop(1, "#080304");
-      } else if (multiplier > 50) {
+      } else if (currentMultiplier > 50) {
         grad.addColorStop(0, "#190e2b");
         grad.addColorStop(0.5, "#0e091a");
         grad.addColorStop(1, "#07050d");
-      } else if (multiplier > 10) {
+      } else if (currentMultiplier > 10) {
         grad.addColorStop(0, "#0c152e");
         grad.addColorStop(0.5, "#090d1f");
         grad.addColorStop(1, "#050711");
@@ -151,7 +166,7 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
       ctx.fillRect(0, 0, width, height);
 
       // 2. Parallax Stars / Cyber Grid
-      const starSpeedMultiplier = gameState === "FLYING" ? Math.min(6, 1 + Math.log2(multiplier) * 1.2) : 0.5;
+      const starSpeedMultiplier = currentGameState === "FLYING" ? Math.min(6, 1 + Math.log2(currentMultiplier) * 1.2) : 0.5;
 
       stars.forEach((star) => {
         star.x -= star.speed * starSpeedMultiplier;
@@ -195,8 +210,8 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
       let jetY = originY;
       let angle = -0.35; // radians
 
-      if (gameState === "FLYING" || gameState === "CRASHED") {
-        const progress = Math.min(1.0, (Math.log(multiplier) / Math.log(30)) * 0.85 + 0.1);
+      if (currentGameState === "FLYING" || currentGameState === "CRASHED") {
+        const progress = Math.min(1.0, (Math.log(currentMultiplier) / Math.log(30)) * 0.85 + 0.1);
         const curveMaxX = width * 0.82;
         const curveMinY = height * 0.18;
 
@@ -211,7 +226,7 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
       }
 
       // 5. Draw Flight Trajectory Curve & Altitude Area
-      if (gameState === "FLYING" || gameState === "CRASHED") {
+      if (currentGameState === "FLYING" || currentGameState === "CRASHED") {
         ctx.beginPath();
         ctx.moveTo(originX, originY);
 
@@ -225,7 +240,7 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         ctx.closePath();
 
         const curveGrad = ctx.createLinearGradient(0, jetY, 0, originY);
-        if (gameState === "CRASHED") {
+        if (currentGameState === "CRASHED") {
           curveGrad.addColorStop(0, "rgba(225, 29, 72, 0.25)");
           curveGrad.addColorStop(1, "rgba(225, 29, 72, 0.01)");
         } else {
@@ -240,16 +255,16 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
         ctx.beginPath();
         ctx.moveTo(originX, originY);
         ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, jetX, jetY);
-        ctx.strokeStyle = gameState === "CRASHED" ? "#f43f5e" : "#fbbf24";
+        ctx.strokeStyle = currentGameState === "CRASHED" ? "#f43f5e" : "#fbbf24";
         ctx.lineWidth = 3.5;
-        ctx.shadowColor = gameState === "CRASHED" ? "#e11d48" : "#f59e0b";
+        ctx.shadowColor = currentGameState === "CRASHED" ? "#e11d48" : "#f59e0b";
         ctx.shadowBlur = 16;
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
 
       // 6. Draw Exhaust Particles (Jet Trail)
-      if (gameState === "FLYING") {
+      if (currentGameState === "FLYING") {
         const tailX = jetX - Math.cos(angle) * 32;
         const tailY = jetY - Math.sin(angle) * 32;
 
@@ -414,14 +429,14 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
       }
 
       // 8. Draw Cyber Supersonic Aircraft
-      if (gameState !== "CRASHED") {
+      if (currentGameState !== "CRASHED") {
         ctx.save();
         ctx.translate(jetX, jetY);
         ctx.rotate(angle);
 
         // Engine Thruster Glow Flare
-        if (gameState === "FLYING") {
-          const flameLength = 22 + Math.sin(time * 25) * 8 + Math.min(20, Math.log2(multiplier) * 4);
+        if (currentGameState === "FLYING") {
+          const flameLength = 22 + Math.sin(time * 25) * 8 + Math.min(20, Math.log2(currentMultiplier) * 4);
           const flameGrad = ctx.createLinearGradient(-30, 0, -30 - flameLength, 0);
           flameGrad.addColorStop(0, "#ffffff");
           flameGrad.addColorStop(0.3, "#38bdf8");
@@ -480,7 +495,7 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
       }
 
       // 9. Draw Crash Sonic Boom Explosion
-      if (gameState === "CRASHED") {
+      if (currentGameState === "CRASHED") {
         if (shockwaveRadius === 0) {
           for (let i = 0; i < 45; i++) {
             const speed = Math.random() * 8 + 2;
@@ -534,7 +549,7 @@ export const SkyRushCanvas: React.FC<SkyRushCanvasProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [gameState, multiplier, countdown, crashMultiplier]);
+  }, []);
 
   return (
     <div className="relative w-full h-full min-h-[300px] sm:min-h-[360px] md:min-h-[420px] flex items-center justify-center overflow-hidden rounded-2xl bg-[#06080e]">
