@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateStudioRequest } from "@/lib/studioAuth";
 import { STUDIO_GAMES } from "@/lib/gamesCatalog";
+import { db } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,8 +14,36 @@ export async function GET(req: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002";
+    const { searchParams } = new URL(req.url);
+    const category = searchParams.get("category")?.toLowerCase();
+    const query = searchParams.get("q")?.toLowerCase() || searchParams.get("query")?.toLowerCase();
 
-    const formattedGames = STUDIO_GAMES.map((g) => ({
+    // Query disabled games for this operator and platform admin
+    const disabledToggles = await db.operatorGameToggle.findMany({
+      where: {
+        OR: [
+          { operatorId: auth.client.id, isEnabled: false },
+          { operator: { isAdmin: true }, isEnabled: false },
+        ],
+      },
+      select: { gameUid: true },
+    });
+    const disabledUids = new Set(disabledToggles.map((t) => t.gameUid));
+
+    // Filter active games
+    let activeGames = STUDIO_GAMES.filter((g) => !disabledUids.has(g.game_uid));
+
+    if (category && category !== "all") {
+      activeGames = activeGames.filter((g) => g.category.toLowerCase() === category);
+    }
+
+    if (query) {
+      activeGames = activeGames.filter(
+        (g) => g.name.toLowerCase().includes(query) || g.game_uid.toLowerCase().includes(query)
+      );
+    }
+
+    const formattedGames = activeGames.map((g) => ({
       game_id: g.game_id,
       game_uid: g.game_uid,
       game_name: g.name,
