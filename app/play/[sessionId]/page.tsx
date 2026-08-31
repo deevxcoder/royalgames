@@ -25,6 +25,7 @@ import { DiceXGame } from "@/components/games/DiceXGame";
 import { TreasureTowerGame } from "@/components/games/TreasureTowerGame";
 import { CardClimbGame } from "@/components/games/CardClimbGame";
 import { LuckyWheelGame } from "@/components/games/LuckyWheelGame";
+import { AndarBaharGame } from "@/components/games/AndarBaharGame";
 
 export default function PlaySessionPage() {
   const params = useParams();
@@ -404,6 +405,18 @@ export default function PlaySessionPage() {
           {!deactivationError && activeGame === "royal_luckywheel" && (
             <div className="w-full">
               <LuckyWheelGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
+              />
+            </div>
+          )}
+
+          {/* GAME 11: ANDAR BAHAR ROYALE (Global Synchronized Live Card Table) */}
+          {!deactivationError && activeGame === "royal_andarbahar" && (
+            <div className="w-full">
+              <AndarBaharGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}

@@ -143,4 +143,17 @@ export const STUDIO_GAMES: StudioGame[] = [
     description: "High-octane casino money wheel with 97.0% RTP, mechanical pointer flick, and grand 100x Crown Jackpot.",
     isFeatured: false,
   },
+  {
+    game_id: 88811,
+    game_uid: "royal_andarbahar",
+    name: "Andar Bahar Royale",
+    provider: "Royal Games Studio",
+    category: "Table / Live Cards",
+    rtp: 96.0,
+    max_multiplier: 1.95,
+    logo: null,
+    thumbnail: "/games/royal_andarbahar.svg",
+    description: "Global live synchronized multiplayer Andar Bahar with 7-figure VIP felt, 3D card dealing, and instant payouts.",
+    isFeatured: true,
+  },
 ];
