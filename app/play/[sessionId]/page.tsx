@@ -45,6 +45,7 @@ export default function PlaySessionPage() {
   const [roundHistory, setRoundHistory] = useState<number[]>([1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2]);
 
   const [deactivationError, setDeactivationError] = useState<string | null>(null);
+  const [liveRtp, setLiveRtp] = useState<number>(96.0);
 
   // Load Session Info from Database
   useEffect(() => {
@@ -67,6 +68,9 @@ export default function PlaySessionPage() {
           }
           if (data.clientName) {
             setClientName(data.clientName);
+          }
+          if (typeof data.liveRtp === "number") {
+            setLiveRtp(data.liveRtp);
           }
           // If URL has a game, use it; otherwise use session gameUid
           if (urlGame && STUDIO_GAMES.some((g) => g.game_uid === urlGame)) {
@@ -328,6 +332,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}

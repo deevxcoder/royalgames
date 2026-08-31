@@ -26,11 +26,12 @@ interface DropXGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
-const PLINKO_PAYTABLES: Record<number, Record<RiskLevel, number[]>> = {
+const BASE_PLINKO_PAYTABLES: Record<number, Record<RiskLevel, number[]>> = {
   8: {
     LOW: [5.4, 2.0, 1.1, 1.0, 0.5, 1.0, 1.1, 2.0, 5.4],
     MEDIUM: [12.6, 2.9, 1.3, 0.7, 0.4, 0.7, 1.3, 2.9, 12.6],
@@ -58,6 +59,27 @@ const PLINKO_PAYTABLES: Record<number, Record<RiskLevel, number[]>> = {
   },
 };
 
+// Dynamically compute paytables scaled to live RTP configured in Admin Panel
+function getDynamicPaytables(targetRtp: number = 96.0): Record<number, Record<RiskLevel, number[]>> {
+  const scaling = Math.max(0.75, Math.min(1.05, targetRtp / 96.0));
+  const res: Record<number, Record<RiskLevel, number[]>> = {};
+
+  for (const r in BASE_PLINKO_PAYTABLES) {
+    const rows = Number(r);
+    res[rows] = {} as any;
+    for (const risk in BASE_PLINKO_PAYTABLES[rows]) {
+      const base = BASE_PLINKO_PAYTABLES[rows][risk as RiskLevel];
+      res[rows][risk as RiskLevel] = base.map((m) => {
+        if (m <= 0.5) {
+          return Number((m * Math.pow(scaling, 1.5)).toFixed(1)) || 0.2;
+        }
+        return Number((m * scaling).toFixed(1));
+      });
+    }
+  }
+  return res;
+}
+
 // Generates an authentic Galton Binomial distribution path
 function generatePlinkoPath(totalRows: number): { pathSteps: number[]; targetBucketIndex: number } {
   const pathSteps: number[] = [];
@@ -80,6 +102,7 @@ export const DropXGame: React.FC<DropXGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  liveRtp = 96.0,
 }) => {
   const [betAmount, setBetAmount] = useState(20);
   const [rows, setRows] = useState<number>(10);
@@ -99,7 +122,8 @@ export const DropXGame: React.FC<DropXGameProps> = ({
     balanceRef.current = playerBalance;
   }, [playerBalance]);
 
-  const activeMultipliers = PLINKO_PAYTABLES[rows]?.[risk] || PLINKO_PAYTABLES[10].MEDIUM;
+  const dynamicTables = React.useMemo(() => getDynamicPaytables(liveRtp), [liveRtp]);
+  const activeMultipliers = dynamicTables[rows]?.[risk] || dynamicTables[10].MEDIUM;
 
   // 1. Single Ball Drop with Atomic Balance Deduction
   const dropBall = useCallback(() => {

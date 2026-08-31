@@ -16,6 +16,20 @@ export async function GET(req: NextRequest) {
       sessionId.startsWith("demo_") ||
       sessionId.startsWith("sess_demo");
 
+    // Fetch dynamic live RTP settings from database
+    let liveRtp = 96.0;
+    let rtpMap: Record<string, number> = {};
+    try {
+      const setting = await db.siteSetting.findUnique({ where: { id: "default" } });
+      if (setting?.enabledProviders) {
+        rtpMap = JSON.parse(setting.enabledProviders);
+      }
+    } catch (e) {}
+
+    const globalRtp = rtpMap["_global_rtp"] || 96.0;
+    const targetGame = requestedGame || "royal_skyrush";
+    liveRtp = rtpMap[targetGame] !== undefined ? rtpMap[targetGame] : globalRtp;
+
     if (isDemoSession) {
       return NextResponse.json({
         success: true,
@@ -24,7 +38,10 @@ export async function GET(req: NextRequest) {
         currency: "INR",
         userId: "demo_player",
         clientName: "Demo Casino Player",
-        gameUid: requestedGame || "royal_skyrush",
+        gameUid: targetGame,
+        liveRtp,
+        globalRtp,
+        rtpMap,
       });
     }
 
@@ -78,6 +95,9 @@ export async function GET(req: NextRequest) {
         clientName: session.operator?.companyName || "Royal Client",
         operatorId: session.operatorId,
         isExpired,
+        liveRtp,
+        globalRtp,
+        rtpMap,
       });
     }
 
@@ -94,6 +114,9 @@ export async function GET(req: NextRequest) {
           currency: "INR",
           gameUid: decoded.gameUid || requestedGame || "royal_skyrush",
           clientName: "Royal Client",
+          liveRtp,
+          globalRtp,
+          rtpMap,
         });
       }
     }
