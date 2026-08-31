@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
       }),
       db.gameRound.findMany({
         where: { operatorId: operator.id },
+        include: {
+          user: { select: { id: true, username: true } },
+          session: { select: { id: true, userId: true } },
+        },
         orderBy: { createdAt: "desc" },
         take: limit,
       }),

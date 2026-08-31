@@ -1,30 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { verifyStudioAdminToken } from "@/lib/studioAuth";
+import { getCurrentOperator } from "@/lib/auth";
 import { db } from "@/lib/db";
 import crypto from "crypto";
 import axios from "axios";
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("operator_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const payload = verifyStudioAdminToken(token);
-    if (!payload || !payload.username) {
-      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-    }
-
-    const operator = await db.operator.findUnique({
-      where: { email: payload.username },
-      include: { tokens: true },
-    });
-
+    const operator = await getCurrentOperator();
     if (!operator) {
-      return NextResponse.json({ error: "Operator not found" }, { status: 404 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json().catch(() => ({}));

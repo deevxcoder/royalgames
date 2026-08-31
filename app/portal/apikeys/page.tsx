@@ -42,6 +42,8 @@ export default function ApiKeysPage() {
   // Callback URL editor state
   const [callbackUrlInput, setCallbackUrlInput] = useState("");
   const [savingCallback, setSavingCallback] = useState(false);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [testResult, setTestResult] = useState<any | null>(null);
 
   const fetchData = async () => {
     try {
@@ -157,7 +159,7 @@ export default function ApiKeysPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setStatusMsg({ type: "success", text: "Default Webhook Callback URL updated!" });
+        setStatusMsg({ type: "success", text: "Default Webhook Callback URL updated successfully!" });
         await fetchData();
       } else {
         setStatusMsg({ type: "error", text: data.error || "Failed to update callback URL" });
@@ -166,6 +168,43 @@ export default function ApiKeysPage() {
       setStatusMsg({ type: "error", text: err.message || "Failed to update callback URL" });
     } finally {
       setSavingCallback(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!callbackUrlInput.trim()) {
+      setStatusMsg({ type: "error", text: "Please enter a valid Webhook Callback URL first." });
+      return;
+    }
+
+    setTestingWebhook(true);
+    setTestResult(null);
+    setStatusMsg(null);
+
+    try {
+      const res = await fetch("/api/operator/test-webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callbackUrl: callbackUrlInput.trim() }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+
+      if (data.success) {
+        setStatusMsg({
+          type: "success",
+          text: `Webhook Test Succeeded! HTTP ${data.httpStatus} received from your casino callback endpoint in ${data.latencyMs}ms.`,
+        });
+      } else {
+        setStatusMsg({
+          type: "error",
+          text: `Webhook Test Alert: HTTP ${data.httpStatus || "Error"} received from ${callbackUrlInput}. Check details below.`,
+        });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: "error", text: err.message || "Failed to send test webhook ping" });
+    } finally {
+      setTestingWebhook(false);
     }
   };
 
@@ -190,11 +229,12 @@ export default function ApiKeysPage() {
   const primaryToken = operator?.tokens?.[0]?.token || "rgs_live_your_token";
   const primarySecret = operator?.tokens?.[0]?.secretKey || "rgs_sec_your_secret";
   const baseUrl = typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "http://localhost:3002/api/v1";
+  const effectiveCallback = callbackUrlInput || operator?.callbackUrl || "https://yourcasino.com/api/callback";
 
   const envSnippet = `ROYAL_API_URL=${baseUrl}
 ROYAL_API_TOKEN=${primaryToken}
 ROYAL_SECRET_KEY=${primarySecret}
-ROYAL_CALLBACK_URL=${operator?.callbackUrl || "https://yourcasino.com/api/callback"}
+ROYAL_CALLBACK_URL=${effectiveCallback}
 ROYAL_RETURN_URL=https://yourcasino.com/lobby`;
 
   return (
@@ -251,11 +291,16 @@ ROYAL_RETURN_URL=https://yourcasino.com/lobby`;
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left: Quick Connection Details */}
             <div className="lg:col-span-6 bg-[#0b0f19] border border-slate-800/90 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                <Server className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  API Gateway Connection Details
-                </h3>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Server className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                    API Gateway Connection Details
+                  </h3>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-mono font-bold border border-emerald-500/20">
+                  LIVE GATEWAY
+                </span>
               </div>
 
               {/* Base URL Box */}
@@ -289,24 +334,114 @@ ROYAL_RETURN_URL=https://yourcasino.com/lobby`;
               </div>
 
               {/* Default Webhook Callback URL */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Default Webhook Callback URL</label>
-                <div className="flex items-center gap-2">
+              <div className="space-y-2 pt-1 border-t border-slate-800/60">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Default Webhook Callback URL</span>
+                  </label>
+                  {operator?.callbackUrl ? (
+                    <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Configured
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400 font-mono">Not Set</span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Your casino settlement endpoint where Royal Studio sends HMAC-signed game round settlements (deductions, wins & balance sync).
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <input
                     type="url"
                     value={callbackUrlInput}
                     onChange={(e) => setCallbackUrlInput(e.target.value)}
                     placeholder="https://yourcasino.com/api/callback"
-                    className="flex-1 bg-[#07090e] border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-amber-500/60"
+                    className="flex-1 bg-[#07090e] border border-slate-800 focus:border-amber-500/60 rounded-xl px-3 py-2.5 text-xs font-mono text-white placeholder-slate-600 focus:outline-none"
                   />
-                  <button
-                    onClick={handleSaveCallbackUrl}
-                    disabled={savingCallback}
-                    className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all disabled:opacity-50"
-                  >
-                    {savingCallback ? "Saving..." : "Save"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveCallbackUrl}
+                      disabled={savingCallback}
+                      className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-1 shrink-0"
+                    >
+                      {savingCallback ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <span>Save URL</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTestWebhook}
+                      disabled={testingWebhook || !callbackUrlInput}
+                      className="px-3 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 hover:text-amber-300 font-bold text-xs rounded-xl border border-amber-500/30 transition-all disabled:opacity-40 flex items-center justify-center gap-1 shrink-0"
+                      title="Send a sample signed round_settled POST request to verify your casino callback handler"
+                    >
+                      {testingWebhook ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                      ) : (
+                        <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      )}
+                      <span>{testingWebhook ? "Pinging..." : "Test Ping"}</span>
+                    </button>
+                  </div>
                 </div>
+
+                {/* Webhook Test Details Inspector */}
+                {testResult && (
+                  <div className="mt-3 p-3.5 rounded-xl bg-[#07090e] border border-slate-800 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                        <Radio className="w-3.5 h-3.5 text-amber-400" />
+                        Webhook Test Response:
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                          testResult.success
+                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                            : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                        }`}
+                      >
+                        HTTP {testResult.httpStatus || "ERR"} ({testResult.latencyMs || 0}ms)
+                      </span>
+                    </div>
+
+                    <div className="space-y-1 font-mono text-[11px]">
+                      <div className="text-slate-400 truncate">
+                        <span className="text-slate-500">Endpoint:</span> {testResult.callbackUrl}
+                      </div>
+                      {testResult.signatureSent && (
+                        <div className="text-slate-400 truncate">
+                          <span className="text-slate-500">HMAC Sig:</span>{" "}
+                          <span className="text-amber-400/90">{testResult.signatureSent}</span>
+                        </div>
+                      )}
+                      {testResult.responseReceived && (
+                        <div className="text-slate-400">
+                          <span className="text-slate-500">Casino Response:</span>{" "}
+                          <span className="text-emerald-400">
+                            {typeof testResult.responseReceived === "object"
+                              ? JSON.stringify(testResult.responseReceived)
+                              : String(testResult.responseReceived)}
+                          </span>
+                        </div>
+                      )}
+                      {testResult.error && (
+                        <div className="text-rose-400">
+                          <span className="text-rose-500">Error:</span> {testResult.error}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

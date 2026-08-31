@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search,
   Activity,
+  User,
 } from "lucide-react";
 
 export default function OperatorSessionsPage() {
@@ -18,6 +19,10 @@ export default function OperatorSessionsPage() {
   const [rounds, setRounds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const getPlayerName = (round: any) => {
+    return round.user?.username || round.userId || round.session?.userId || round.memberAccount || "player_guest";
+  };
 
   const fetchData = async () => {
     try {
@@ -53,10 +58,11 @@ export default function OperatorSessionsPage() {
   const filteredRounds = rounds.filter((r) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
+    const pName = getPlayerName(r).toLowerCase();
     return (
       r.gameUid?.toLowerCase().includes(q) ||
       r.gameName?.toLowerCase().includes(q) ||
-      r.memberAccount?.toLowerCase().includes(q) ||
+      pName.includes(q) ||
       r.serialNumber?.toLowerCase().includes(q)
     );
   });
@@ -176,8 +182,11 @@ export default function OperatorSessionsPage() {
                           </div>
                           <div className="text-[10px] text-slate-500 font-mono">{round.gameUid}</div>
                         </td>
-                        <td className="py-2.5 font-mono text-slate-300">
-                          {round.memberAccount || round.userId}
+                        <td className="py-2.5 font-mono">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#07090e] border border-slate-800 text-amber-300 text-xs font-semibold">
+                            <User className="w-3 h-3 text-amber-400/80" />
+                            {getPlayerName(round)}
+                          </span>
                         </td>
                         <td className="py-2.5 font-mono text-slate-300">₹{round.betAmount}</td>
                         <td className="py-2.5 font-mono text-emerald-400 font-bold">

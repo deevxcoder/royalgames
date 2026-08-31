@@ -1,32 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { verifyStudioAdminToken } from "@/lib/studioAuth";
+import { getCurrentOperator } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("operator_token")?.value;
-    if (!token) {
+    const operator = await getCurrentOperator();
+    if (!operator) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const payload = verifyStudioAdminToken(token);
-    if (!payload || !payload.username) {
-      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
     const body = await req.json().catch(() => ({}));
     const { callbackUrl } = body;
 
-    const operator = await db.operator.update({
-      where: { email: payload.username },
-      data: { callbackUrl: callbackUrl || null },
+    const updated = await db.operator.update({
+      where: { id: operator.id },
+      data: { callbackUrl: callbackUrl ? String(callbackUrl).trim() : null },
     });
 
     return NextResponse.json({
       success: true,
-      callbackUrl: operator.callbackUrl,
+      callbackUrl: updated.callbackUrl,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 });

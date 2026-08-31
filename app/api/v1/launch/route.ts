@@ -17,13 +17,15 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const playerId =
-      body.user_id ||
-      body.member_account ||
-      body.userId ||
       body.username ||
+      body.player_name ||
+      body.playerName ||
+      body.member_account ||
+      body.memberAccount ||
+      body.user_id ||
+      body.userId ||
       body.player_id ||
       body.playerId ||
-      body.memberAccount ||
       body.user ||
       body.account;
 

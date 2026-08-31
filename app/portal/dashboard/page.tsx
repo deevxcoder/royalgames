@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowUpRight,
+  User,
 } from "lucide-react";
 
 export default function OperatorDashboardPage() {
@@ -197,7 +198,12 @@ export default function OperatorDashboardPage() {
                           <div className="font-semibold text-slate-200">{round.gameName || round.gameUid}</div>
                           <div className="text-[10px] text-slate-500 font-mono">{round.serialNumber}</div>
                         </td>
-                        <td className="py-2.5 font-mono text-slate-300">{round.userId || round.memberAccount}</td>
+                        <td className="py-2.5 font-mono">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-[#07090e] border border-slate-800 text-amber-300 text-xs font-semibold">
+                            <User className="w-3 h-3 text-amber-400/80" />
+                            {round.user?.username || round.userId || round.session?.userId || round.memberAccount || "player_guest"}
+                          </span>
+                        </td>
                         <td className="py-2.5 font-mono text-slate-300">₹{round.betAmount}</td>
                         <td className="py-2.5 font-mono text-emerald-400 font-semibold">₹{round.winAmount}</td>
                         <td className="py-2.5 font-mono text-amber-400 font-semibold">-₹{round.ggrFeeDeducted}</td>
