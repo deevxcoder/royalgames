@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   Sparkles,
   Zap,
@@ -15,6 +15,8 @@ import {
   Layers,
   History,
   CircleDot,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { sound } from "@/lib/soundFx";
@@ -56,76 +58,122 @@ const PLINKO_PAYTABLES: Record<number, Record<RiskLevel, number[]>> = {
   },
 };
 
+// Generates an authentic Galton Binomial distribution path
+function generatePlinkoPath(totalRows: number): { pathSteps: number[]; targetBucketIndex: number } {
+  const pathSteps: number[] = [];
+  let rightTurns = 0;
+
+  for (let r = 0; r < totalRows; r++) {
+    // 50/50 binary random walk with natural central gravity
+    const decision = Math.random() < 0.5 ? 0 : 1;
+    pathSteps.push(decision);
+    if (decision === 1) rightTurns++;
+  }
+
+  return {
+    pathSteps,
+    targetBucketIndex: rightTurns,
+  };
+}
+
 export const DropXGame: React.FC<DropXGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
 }) => {
-  const [betAmount, setBetAmount] = useState(50);
+  const [betAmount, setBetAmount] = useState(20);
   const [rows, setRows] = useState<number>(10);
   const [risk, setRisk] = useState<RiskLevel>("MEDIUM");
   const [activeBalls, setActiveBalls] = useState<PlinkoBall[]>([]);
-  const [dropHistory, setDropHistory] = useState<number[]>([1.4, 2.0, 0.4, 5.0, 0.6, 22.0, 1.4]);
-  const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
+  const [dropHistory, setDropHistory] = useState<number[]>([1.4, 0.6, 0.4, 0.6, 2.0, 0.4, 1.4]);
+  const [lastOutcome, setLastOutcome] = useState<{
+    amount: number;
+    multiplier: number;
+    bet: number;
+    isWin: boolean;
+  } | null>(null);
+
+  // Synchronized Realtime Balance Tracker for Concurrency Safety
+  const balanceRef = useRef(playerBalance);
+  useEffect(() => {
+    balanceRef.current = playerBalance;
+  }, [playerBalance]);
 
   const activeMultipliers = PLINKO_PAYTABLES[rows]?.[risk] || PLINKO_PAYTABLES[10].MEDIUM;
 
-  // 1. Drop a Ball with automatic center alignment
-  const dropBall = () => {
-    if (playerBalance < betAmount) {
+  // 1. Single Ball Drop with Atomic Balance Deduction
+  const dropBall = useCallback(() => {
+    if (balanceRef.current < betAmount) {
       alert("Insufficient Balance");
       return;
     }
 
-    onUpdateBalance(playerBalance - betAmount);
+    // Atomically deduct balance
+    balanceRef.current = Number((balanceRef.current - betAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
     sound.playChipBet();
 
+    const { pathSteps, targetBucketIndex } = generatePlinkoPath(rows);
+
     const newBall: PlinkoBall = {
-      id: `ball_${Date.now()}_${Math.random()}`,
+      id: `ball_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       x: 0,
       y: 0,
-      vx: (Math.random() - 0.5) * 0.8,
-      vy: 0.8,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: 2.0,
       radius: rows >= 14 ? 4 : 5.5,
       color: risk === "HIGH" ? "#f43f5e" : risk === "MEDIUM" ? "#fbbf24" : "#38bdf8",
       betAmount,
+      pathSteps,
+      targetBucketIndex,
+      currentRow: 0,
       isLanded: false,
       initialized: false,
     };
 
     setActiveBalls((prev) => [...prev, newBall]);
-  };
+  }, [betAmount, rows, risk, onUpdateBalance]);
 
-  // 2. Burst Drop Multiple Balls
-  const dropMultipleBalls = (count: number) => {
-    if (playerBalance < betAmount * count) {
-      alert("Insufficient Balance for multi-drop");
-      return;
-    }
+  // 2. Burst Multi-Ball Drops
+  const dropMultipleBalls = useCallback(
+    (count: number) => {
+      const totalCost = betAmount * count;
+      if (balanceRef.current < totalCost) {
+        alert(`Insufficient Balance for x${count} multi-drop (Requires ₹${totalCost})`);
+        return;
+      }
 
-    for (let i = 0; i < count; i++) {
-      setTimeout(() => {
-        dropBall();
-      }, i * 160);
-    }
-  };
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          dropBall();
+        }, i * 110);
+      }
+    },
+    [betAmount, dropBall]
+  );
 
   // 3. Callback when a ball lands in a bucket
   const handleBallLanded = useCallback(
     (ballId: string, bucketIndex: number, multiplier: number, ballBetAmount: number) => {
       const winAmount = Number((ballBetAmount * multiplier).toFixed(2));
 
-      onUpdateBalance(playerBalance + winAmount);
-      setDropHistory((prev) => [multiplier, ...prev.slice(0, 9)]);
-      setLastWin({ amount: winAmount, multiplier });
+      // Atomically add returned win
+      balanceRef.current = Number((balanceRef.current + winAmount).toFixed(2));
+      onUpdateBalance(balanceRef.current);
 
-      if (multiplier >= 10) {
+      setDropHistory((prev) => [multiplier, ...prev.slice(0, 9)]);
+      const isWin = multiplier >= 1.0;
+      setLastOutcome({ amount: winAmount, multiplier, bet: ballBetAmount, isWin });
+
+      // Audio & Confetti Feedback
+      if (multiplier >= 5.0) {
         sound.playWin();
-        confetti({ particleCount: 65, spread: 70, origin: { y: 0.8 } });
-      } else {
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.85 } });
+      } else if (multiplier >= 1.4) {
         sound.playCoinFlip();
       }
 
+      // Transmit to authoritative studio backend
       if (onRecordRound) {
         onRecordRound({ bet: ballBetAmount, win: winAmount, multiplier });
       }
@@ -133,7 +181,7 @@ export const DropXGame: React.FC<DropXGameProps> = ({
       // Cleanup landed ball
       setActiveBalls((prev) => prev.filter((b) => b.id !== ballId));
     },
-    [playerBalance, onUpdateBalance, onRecordRound]
+    [onUpdateBalance, onRecordRound]
   );
 
   return (
@@ -151,9 +199,11 @@ export const DropXGame: React.FC<DropXGameProps> = ({
                 ? "bg-rose-950/70 text-rose-300 border border-rose-500/50 shadow-md shadow-rose-500/20"
                 : mult >= 3
                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/50"
-                : mult >= 1
+                : mult >= 1.4
                 ? "bg-emerald-950/70 text-emerald-300 border border-emerald-500/50"
-                : "bg-slate-900 text-gray-400 border border-slate-800"
+                : mult === 1.0
+                ? "bg-sky-950/50 text-sky-400 border border-sky-500/30"
+                : "bg-slate-900/90 text-slate-400 border border-slate-800"
             }`}
           >
             {mult}x
@@ -172,7 +222,7 @@ export const DropXGame: React.FC<DropXGameProps> = ({
         />
       </div>
 
-      {/* Spacious, Ergonomic Dashboard Panel (No Cramping) */}
+      {/* Ergonomic Dashboard Panel */}
       <div className="bg-[#080d18] border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5 backdrop-blur-md">
         {/* 1. Risk Volatility Selector */}
         <div className="space-y-1.5">
@@ -301,11 +351,37 @@ export const DropXGame: React.FC<DropXGameProps> = ({
           </button>
         </div>
 
-        {/* Win Celebration Banner */}
-        {lastWin && (
-          <div className="p-2.5 bg-emerald-950/70 border border-emerald-500/60 rounded-2xl text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 animate-bounce shadow-lg">
-            <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Landed {lastWin.multiplier}x! Won ₹{lastWin.amount.toLocaleString()}!</span>
+        {/* Dynamic Outcome Banner (Win / Loss Accurate Representation) */}
+        {lastOutcome && (
+          <div
+            className={`p-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg ${
+              lastOutcome.multiplier >= 1.4
+                ? "bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 animate-pulse"
+                : lastOutcome.multiplier === 1.0
+                ? "bg-sky-950/70 border border-sky-500/50 text-sky-300"
+                : "bg-slate-900/90 border border-slate-700/60 text-slate-300"
+            }`}
+          >
+            {lastOutcome.multiplier >= 1.4 ? (
+              <>
+                <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  Landed {lastOutcome.multiplier}x! Profit: +₹{(lastOutcome.amount - lastOutcome.bet).toFixed(0)} (Won ₹{lastOutcome.amount})
+                </span>
+              </>
+            ) : lastOutcome.multiplier === 1.0 ? (
+              <>
+                <CircleDot className="w-4 h-4 text-sky-400 shrink-0" />
+                <span>Landed 1.0x • Push / Refund (₹{lastOutcome.amount})</span>
+              </>
+            ) : (
+              <>
+                <TrendingDown className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>
+                  Landed {lastOutcome.multiplier}x • Returned ₹{lastOutcome.amount} (-₹{(lastOutcome.bet - lastOutcome.amount).toFixed(0)})
+                </span>
+              </>
+            )}
           </div>
         )}
       </div>

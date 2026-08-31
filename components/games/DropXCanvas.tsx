@@ -12,7 +12,9 @@ export interface PlinkoBall {
   radius: number;
   color: string;
   betAmount: number;
-  targetBucketIndex?: number;
+  pathSteps: number[]; // 0 = Left, 1 = Right for each row
+  targetBucketIndex: number;
+  currentRow: number;
   isLanded: boolean;
   initialized?: boolean;
 }
@@ -52,14 +54,11 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
     if (!ctx) return;
 
     let animationFrameId: number;
-    let time = 0;
 
     // Pin hit light particles
     const pinFlashes: Array<{ x: number; y: number; alpha: number; color: string }> = [];
 
     const render = () => {
-      time += 0.025;
-
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       const width = rect.width;
@@ -81,20 +80,20 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // 2. Compute Pin Pyramid Positions (Spacious & Tall)
+      // 2. Compute Pin Pyramid Positions
       const pinRadius = rows >= 14 ? 2.5 : 3.5;
-      const topY = Math.max(18, height * 0.045);
-      const bottomY = height - 36;
-      const rowSpacing = (bottomY - topY) / (rows + 0.6);
+      const topY = Math.max(22, height * 0.05);
+      const bottomY = height - 42;
+      const rowSpacing = (bottomY - topY) / (rows + 0.5);
 
-      const maxRowWidth = Math.min(width * 0.94, (rows + 3) * 36);
-      const pinSpacing = maxRowWidth / (rows + 3);
+      const maxRowWidth = Math.min(width * 0.92, (rows + 2) * 38);
+      const pinSpacing = maxRowWidth / (rows + 2);
 
       const pins: Array<{ x: number; y: number; row: number; col: number }> = [];
 
       for (let r = 0; r <= rows; r++) {
         const rowY = topY + r * rowSpacing;
-        const pinsInRow = r + 3; // Row 0 has 3 pins, Row 1 has 4...
+        const pinsInRow = r + 3;
         const startX = width / 2 - ((pinsInRow - 1) * pinSpacing) / 2;
 
         for (let c = 0; c < pinsInRow; c++) {
@@ -107,7 +106,7 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
       pins.forEach((pin) => {
         ctx.fillStyle = "#e2e8f0";
         ctx.shadowColor = "#38bdf8";
-        ctx.shadowBlur = 6;
+        ctx.shadowBlur = 5;
         ctx.beginPath();
         ctx.arc(pin.x, pin.y, pinRadius, 0, Math.PI * 2);
         ctx.fill();
@@ -117,7 +116,7 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
       // 4. Draw Pin Hit Flashes
       for (let i = pinFlashes.length - 1; i >= 0; i--) {
         const pf = pinFlashes[i];
-        pf.alpha -= 0.06;
+        pf.alpha -= 0.08;
         if (pf.alpha <= 0) {
           pinFlashes.splice(i, 1);
           continue;
@@ -131,7 +130,7 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
 
       // 5. Draw Multiplier Landing Buckets at the Bottom
       const numBuckets = multipliers.length;
-      const totalBucketWidth = Math.min(width * 0.96, numBuckets * (pinSpacing + 2));
+      const totalBucketWidth = Math.min(width * 0.94, numBuckets * (pinSpacing + 1));
       const bucketWidth = totalBucketWidth / numBuckets;
       const bucketStartX = width / 2 - totalBucketWidth / 2;
       const bucketY = height - 22;
@@ -144,7 +143,7 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         }
 
         // Color Gradient based on Multiplier Magnitude
-        let bucketColor = "#0284c7"; // Cyan middle
+        let bucketColor = "#0284c7"; // Cyan
         let glowColor = "#38bdf8";
         if (mult >= 100) {
           bucketColor = "#e11d48"; // Ruby red jackpot
@@ -155,9 +154,12 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         } else if (mult >= 4) {
           bucketColor = "#ca8a04"; // Gold
           glowColor = "#eab308";
-        } else if (mult >= 1.5) {
+        } else if (mult >= 1.4) {
           bucketColor = "#059669"; // Emerald
           glowColor = "#10b981";
+        } else if (mult <= 0.6) {
+          bucketColor = "#334155"; // Slate / Dark for loss buckets
+          glowColor = "#64748b";
         }
 
         ctx.save();
@@ -172,7 +174,7 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         // Bucket Body
         ctx.fillStyle = bucketColor;
         ctx.beginPath();
-        ctx.roundRect(-bucketWidth * 0.46, -10, bucketWidth * 0.92, 20, 5);
+        ctx.roundRect(-bucketWidth * 0.46, -11, bucketWidth * 0.92, 22, 5);
         ctx.fill();
 
         // Bucket Border
@@ -181,9 +183,9 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         ctx.stroke();
 
         // Bucket Multiplier Text
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = mult <= 0.6 ? "#cbd5e1" : "#ffffff";
         const fontSize = Math.max(6.5, Math.min(9.5, bucketWidth * 0.38));
-        ctx.font = `black ${fontSize}px monospace`;
+        ctx.font = `bold ${fontSize}px monospace`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(`${mult}x`, 0, 0);
@@ -191,33 +193,46 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         ctx.restore();
       });
 
-      // 6. Physics Simulation for Active Plinko Balls (True Centered Galton Physics)
-      const gravity = 0.28;
-      const restitution = 0.55;
-
+      // 6. Physics & Guided Path Trajectory Simulation
       for (let i = activeBallsRef.current.length - 1; i >= 0; i--) {
         const ball = activeBallsRef.current[i];
         if (ball.isLanded) continue;
 
-        // Initialize ball at exact top-center of pyramid
+        // Initialize ball above top center
         if (!ball.initialized) {
-          ball.x = width / 2 + (Math.random() - 0.5) * (pinSpacing * 0.3);
-          ball.y = topY - 14;
-          ball.vx = (Math.random() - 0.5) * 0.6;
-          ball.vy = 0.8;
+          ball.x = width / 2;
+          ball.y = topY - 16;
+          ball.vx = (Math.random() - 0.5) * 0.4;
+          ball.vy = 2.2;
+          ball.currentRow = 0;
           ball.initialized = true;
         }
 
-        // Apply Gravity
+        // Physics step
+        const gravity = 0.32;
         ball.vy += gravity;
         ball.x += ball.vx;
         ball.y += ball.vy;
 
-        // Air Resistance / Friction
-        ball.vx *= 0.985;
-        ball.vy *= 0.985;
+        // Determine current target X based on path steps
+        // Ball descends row by row
+        const currentR = Math.floor((ball.y - topY + rowSpacing * 0.5) / rowSpacing);
+        const clampedRow = Math.max(0, Math.min(rows, currentR));
 
-        // Pin Collisions
+        // Calculate accumulated offset from center based on pathSteps
+        let accumulatedDecisions = 0;
+        for (let r = 0; r < Math.min(ball.pathSteps.length, clampedRow); r++) {
+          accumulatedDecisions += ball.pathSteps[r] === 1 ? 0.5 : -0.5;
+        }
+
+        const targetX = width / 2 + accumulatedDecisions * pinSpacing;
+        const dxToTarget = targetX - ball.x;
+
+        // Subtle guiding magnetic force toward path decision
+        ball.vx += dxToTarget * 0.04;
+        ball.vx *= 0.94; // damping
+
+        // Pin collision checks
         pins.forEach((pin) => {
           const dx = ball.x - pin.x;
           const dy = ball.y - pin.y;
@@ -225,36 +240,23 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
           const minDist = ball.radius + pinRadius;
 
           if (dist < minDist && dist > 0) {
-            // Normal Vector
             const nx = dx / dist;
             const ny = dy / dist;
 
-            // Separate overlapping ball from pin
+            // Separate overlapping ball
             ball.x = pin.x + nx * minDist;
             ball.y = pin.y + ny * minDist;
 
-            // Velocity Reflection
-            const dot = ball.vx * nx + ball.vy * ny;
-            if (dot < 0) {
-              const jitter = (Math.random() - 0.5) * 0.5;
-              ball.vx = (ball.vx - 2 * dot * nx) * restitution + jitter;
-              ball.vy = (ball.vy - 2 * dot * ny) * restitution;
-            }
+            // Deflect with natural bounce
+            ball.vy = Math.max(1.2, ball.vy * 0.65);
+            const side = ball.x >= pin.x ? 1 : -1;
+            ball.vx = side * (0.8 + Math.random() * 0.6);
 
-            // Pin Hit Visual Flash
-            pinFlashes.push({ x: pin.x, y: pin.y, alpha: 0.9, color: "#38bdf8" });
+            // Flash & sound
+            pinFlashes.push({ x: pin.x, y: pin.y, alpha: 0.8, color: "#38bdf8" });
             sound.playChipBet();
           }
         });
-
-        // Left / Right Arena Wall Bounds
-        if (ball.x - ball.radius < 10) {
-          ball.x = 10 + ball.radius;
-          ball.vx = Math.abs(ball.vx) * 0.6;
-        } else if (ball.x + ball.radius > width - 10) {
-          ball.x = width - 10 - ball.radius;
-          ball.vx = -Math.abs(ball.vx) * 0.6;
-        }
 
         // Draw Ball with Glowing Neon Halo
         ctx.save();
@@ -268,7 +270,7 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
 
         ctx.fillStyle = "#ffffff";
         ctx.beginPath();
-        ctx.arc(ball.x - 1.5, ball.y - 1.5, ball.radius * 0.35, 0, Math.PI * 2);
+        ctx.arc(ball.x - 1.2, ball.y - 1.2, ball.radius * 0.35, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -276,12 +278,10 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         // Check Landing into Multiplier Bucket
         if (ball.y >= bucketY - 8) {
           ball.isLanded = true;
-          // Determine landing bucket index accurately
-          const bucketIndex = Math.max(
-            0,
-            Math.min(numBuckets - 1, Math.floor((ball.x - bucketStartX) / bucketWidth))
-          );
-          const wonMult = multipliers[bucketIndex] || 1.0;
+
+          // Target bucket from predetermined path
+          const bucketIndex = Math.max(0, Math.min(numBuckets - 1, ball.targetBucketIndex));
+          const wonMult = multipliers[bucketIndex] ?? 1.0;
 
           // Trigger bucket bounce animation
           bucketBounceRef.current[bucketIndex] = 1.0;
