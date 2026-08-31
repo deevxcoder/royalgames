@@ -118,7 +118,7 @@ async function main() {
 
   // 4. Initialize External Provider Record (Brand ID 1: Royal Games Studio)
   console.log("4. Registering External Provider Record for Royal Games Studio...");
-  await prisma.externalProvider.upsert({
+  const nativeProvider = await prisma.externalProvider.upsert({
     where: { brandId: 1 },
     update: {
       name: "Royal Games Studio",
@@ -141,34 +141,30 @@ async function main() {
     },
   });
 
-  // 5. Sync All 11 Native HTML5 Games to Database
+  // 5. Sync All Studio Games to Database
   console.log(`5. Synchronizing ${STUDIO_GAMES.length} HTML5 Studio Games to ExternalGame table...`);
   for (const game of STUDIO_GAMES) {
     await prisma.externalGame.upsert({
-      where: { gameId: game.game_id },
+      where: { gameUid: game.game_uid },
       update: {
-        gameUid: game.game_uid,
+        providerId: nativeProvider.id,
+        gameId: game.game_id,
         name: game.name,
-        brandId: 1,
-        provider: game.provider,
         category: game.category,
         rtp: 96.0,
-        maxMultiplier: game.max_multiplier,
+        maxMultiplier: `${game.max_multiplier}x`,
         thumbnail: game.thumbnail,
-        description: game.description,
         isActive: true,
       },
       create: {
+        providerId: nativeProvider.id,
         gameId: game.game_id,
         gameUid: game.game_uid,
         name: game.name,
-        brandId: 1,
-        provider: game.provider,
         category: game.category,
         rtp: 96.0,
-        maxMultiplier: game.max_multiplier,
+        maxMultiplier: `${game.max_multiplier}x`,
         thumbnail: game.thumbnail,
-        description: game.description,
         isActive: true,
       },
     });

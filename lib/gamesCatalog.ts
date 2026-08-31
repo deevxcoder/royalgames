@@ -156,4 +156,17 @@ export const STUDIO_GAMES: StudioGame[] = [
     description: "Global live synchronized multiplayer Andar Bahar with 7-figure VIP felt, 3D card dealing, and instant payouts.",
     isFeatured: true,
   },
+  {
+    game_id: 88812,
+    game_uid: "royal_cockfight",
+    name: "Cock Fight 1v1 (Arena)",
+    provider: "Royal Arena PvP",
+    category: "Royal Arena / 1v1 PvP",
+    rtp: 95.0,
+    max_multiplier: 1.90,
+    logo: null,
+    thumbnail: "/games/royal_cockfight.svg",
+    description: "High-adrenaline 1v1 Player vs Player rooster battleground. Choose your champion, enter the sand pit, and claim the pot!",
+    isFeatured: true,
+  },
 ];

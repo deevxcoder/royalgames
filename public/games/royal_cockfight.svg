@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <radialGradient id="arenaBg" cx="50%" cy="50%" r="75%">
+      <stop offset="0%" stop-color="#3d1d0c" />
+      <stop offset="50%" stop-color="#1c0b04" />
+      <stop offset="100%" stop-color="#080301" />
+    </radialGradient>
+    <linearGradient id="redFire" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f87171" />
+      <stop offset="50%" stop-color="#dc2626" />
+      <stop offset="100%" stop-color="#991b1b" />
+    </linearGradient>
+    <linearGradient id="blueFire" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1e3a8a" />
+    </linearGradient>
+    <linearGradient id="goldText" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#ca8a04" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Sand Pit Arena -->
+  <rect width="400" height="300" fill="url(#arenaBg)" rx="24" />
+  <circle cx="200" cy="160" r="110" fill="#78350f" fill-opacity="0.25" stroke="#f59e0b" stroke-width="2" stroke-dasharray="8 6" />
+
+  <!-- Flaming Torches on sides -->
+  <circle cx="60" cy="80" r="14" fill="#ea580c" filter="url(#glow)" />
+  <circle cx="340" cy="80" r="14" fill="#ea580c" filter="url(#glow)" />
+
+  <!-- RED ROOSTER (GARUDA) - Left Fighter -->
+  <g transform="translate(100, 150)">
+    <circle cx="0" cy="0" r="38" fill="url(#redFire)" filter="url(#glow)" />
+    <!-- Comb & Beak -->
+    <path d="M-15,-38 Q0,-55 15,-38 Q25,-48 30,-30 Z" fill="#ef4444" />
+    <polygon points="25,-10 48,-5 25,5" fill="#f59e0b" />
+    <circle cx="15" cy="-12" r="5" fill="#ffffff" />
+    <circle cx="17" cy="-12" r="2.5" fill="#000000" />
+    <text x="0" y="55" fill="#f87171" font-size="12" font-family="system-ui, sans-serif" font-weight="900" text-anchor="middle">GARUDA (RED)</text>
+  </g>
+
+  <!-- VS Clash Badge in Center -->
+  <circle cx="200" cy="150" r="24" fill="#18181b" stroke="#eab308" stroke-width="3" filter="url(#glow)" />
+  <text x="200" y="156" fill="#facc15" font-size="16" font-family="system-ui, sans-serif" font-weight="900" text-anchor="middle">VS</text>
+
+  <!-- BLUE ROOSTER (SHAMO) - Right Fighter -->
+  <g transform="translate(300, 150)">
+    <circle cx="0" cy="0" r="38" fill="url(#blueFire)" filter="url(#glow)" />
+    <!-- Comb & Beak -->
+    <path d="M-15,-38 Q0,-55 15,-38 Q-25,-48 -30,-30 Z" fill="#3b82f6" />
+    <polygon points="-25,-10 -48,-5 -25,5" fill="#f59e0b" />
+    <circle cx="-15" cy="-12" r="5" fill="#ffffff" />
+    <circle cx="-17" cy="-12" r="2.5" fill="#000000" />
+    <text x="0" y="55" fill="#60a5fa" font-size="12" font-family="system-ui, sans-serif" font-weight="900" text-anchor="middle">SHAMO (BLUE)</text>
+  </g>
+
+  <!-- Top Title Header -->
+  <text x="200" y="36" fill="url(#goldText)" font-size="16" font-family="system-ui, sans-serif" font-weight="900" text-anchor="middle" letter-spacing="3">⚔️ COCK FIGHT 1v1</text>
+  <text x="200" y="56" fill="#fbbf24" font-size="11" font-family="monospace" font-weight="bold" text-anchor="middle">ROYAL ARENA • LIVE BATTLEGROUND</text>
+
+  <!-- Bottom Payout Badge -->
+  <rect x="135" y="255" width="130" height="24" rx="12" fill="#451a03" stroke="#f59e0b" stroke-width="1.5" />
+  <text x="200" y="271" fill="#fde047" font-size="11" font-family="monospace" font-weight="bold" text-anchor="middle">1.90x POT PAYOUT</text>
+</svg>

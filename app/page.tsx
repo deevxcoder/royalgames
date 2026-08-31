@@ -26,19 +26,19 @@ import {
 } from "lucide-react";
 import { STUDIO_GAMES } from "@/lib/gamesCatalog";
 
-const CATEGORIES = ["ALL", "SLOTS", "CRASH", "MINES & STEP", "PHYSICS & PLINKO", "FAST & PROBABILITY", "CARDS & WHEEL"];
+const CATEGORIES = ["ALL", "ROYAL ARENA (PvP)", "CRASH", "CARDS & TABLE", "MINES & STEP", "PHYSICS & PLINKO", "FAST & PROBABILITY"];
 
 export default function LandingPage() {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
 
   const filteredGames = STUDIO_GAMES.filter((game) => {
     if (selectedCategory === "ALL") return true;
-    if (selectedCategory === "SLOTS") return game.category.toLowerCase().includes("slot");
+    if (selectedCategory === "ROYAL ARENA (PvP)") return game.category.toLowerCase().includes("arena") || game.category.toLowerCase().includes("pvp");
     if (selectedCategory === "CRASH") return game.category.toLowerCase().includes("crash");
+    if (selectedCategory === "CARDS & TABLE") return game.category.toLowerCase().includes("cards") || game.category.toLowerCase().includes("wheel") || game.category.toLowerCase().includes("table");
     if (selectedCategory === "MINES & STEP") return game.category.toLowerCase().includes("mines") || game.category.toLowerCase().includes("step") || game.category.toLowerCase().includes("tower");
     if (selectedCategory === "PHYSICS & PLINKO") return game.category.toLowerCase().includes("plinko") || game.category.toLowerCase().includes("physics");
     if (selectedCategory === "FAST & PROBABILITY") return game.category.toLowerCase().includes("limbo") || game.category.toLowerCase().includes("fast") || game.category.toLowerCase().includes("dice");
-    if (selectedCategory === "CARDS & WHEEL") return game.category.toLowerCase().includes("cards") || game.category.toLowerCase().includes("wheel");
     return true;
   });
 

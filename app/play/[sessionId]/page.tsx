@@ -26,6 +26,7 @@ import { TreasureTowerGame } from "@/components/games/TreasureTowerGame";
 import { CardClimbGame } from "@/components/games/CardClimbGame";
 import { LuckyWheelGame } from "@/components/games/LuckyWheelGame";
 import { AndarBaharGame } from "@/components/games/AndarBaharGame";
+import { CockFightGame } from "@/components/games/CockFightGame";
 
 export default function PlaySessionPage() {
   const params = useParams();
@@ -417,6 +418,18 @@ export default function PlaySessionPage() {
           {!deactivationError && activeGame === "royal_andarbahar" && (
             <div className="w-full">
               <AndarBaharGame
+                playerBalance={playerBalance}
+                onUpdateBalance={setPlayerBalance}
+                onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
+              />
+            </div>
+          )}
+
+          {/* GAME 12: COCK FIGHT 1v1 (ROYAL ARENA LIVE PVP DUEL) */}
+          {!deactivationError && activeGame === "royal_cockfight" && (
+            <div className="w-full">
+              <CockFightGame
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
