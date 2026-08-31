@@ -21,6 +21,7 @@ interface CricketBlastGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({

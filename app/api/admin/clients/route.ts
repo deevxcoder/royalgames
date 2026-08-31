@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     });
 
     // Send Welcome Email asynchronously with credentials
-    let emailResult = { success: false, error: "Not sent" };
+    let emailResult: any = { success: false, error: "Not sent" };
     try {
       emailResult = await sendClientWelcomeEmail({
         to: email,
