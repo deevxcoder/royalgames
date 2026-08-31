@@ -40,6 +40,9 @@ import {
   Download,
   Calendar,
   Filter,
+  ShieldAlert,
+  Power,
+  AlertTriangle,
 } from "lucide-react";
 import { STUDIO_GAMES } from "@/lib/gamesCatalog";
 
@@ -89,6 +92,17 @@ export default function StudioAdminPortal() {
   const [adjReason, setAdjReason] = useState("");
   const [adjLoading, setAdjLoading] = useState(false);
 
+  // Delete Client Modal State
+  const [deleteModal, setDeleteModal] = useState<{
+    open: boolean;
+    client: any | null;
+    deleting: boolean;
+  }>({
+    open: false,
+    client: null,
+    deleting: false,
+  });
+
   // Reject deposit modal
   const [rejectModalId, setRejectModalId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -117,9 +131,26 @@ export default function StudioAdminPortal() {
   const [newClientModalOpen, setNewClientModalOpen] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientPassword, setNewClientPassword] = useState("Royal@2026!");
+  const [showNewClientPassword, setShowNewClientPassword] = useState(true);
   const [newClientCallback, setNewClientCallback] = useState("http://localhost:3001/api/v1/round/resolve");
   const [newClientIpWhitelist, setNewClientIpWhitelist] = useState("");
   const [creatingClient, setCreatingClient] = useState(false);
+
+  // Created Success Modal
+  const [createdSuccessModal, setCreatedSuccessModal] = useState<{
+    open: boolean;
+    credentials: {
+      name: string;
+      email: string;
+      password: string;
+      token: string;
+      secretKey: string;
+      callbackUrl: string;
+      portalUrl: string;
+      emailResult?: any;
+    } | null;
+  }>({ open: false, credentials: null });
 
   // Check auth
   const checkAuth = useCallback(async () => {
@@ -360,15 +391,30 @@ export default function StudioAdminPortal() {
         body: JSON.stringify({
           name: newClientName,
           email: newClientEmail,
+          password: newClientPassword,
           callbackUrl: newClientCallback,
           ipWhitelist: newClientIpWhitelist || null,
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        setNewClientModalOpen(false);
+        setCreatedSuccessModal({
+          open: true,
+          credentials: {
+            name: newClientName,
+            email: newClientEmail,
+            password: data.password || newClientPassword,
+            token: data.initialKey?.token || "",
+            secretKey: data.initialKey?.secretKey || "",
+            callbackUrl: newClientCallback,
+            portalUrl: typeof window !== "undefined" ? `${window.location.origin}/portal/login` : "http://localhost:3002/portal/login",
+            emailResult: data.emailResult,
+          },
+        });
         setNewClientName("");
         setNewClientEmail("");
-        setNewClientModalOpen(false);
+        setNewClientPassword(`Royal@${Math.floor(1000 + Math.random() * 9000)}!`);
         fetchData();
       } else {
         alert(data.error || "Failed to register client");
@@ -403,15 +449,83 @@ export default function StudioAdminPortal() {
   };
 
   // Revoke Key
-  const handleRevokeKey = async (keyId: string) => {
+  const handleRevokeKey = async (clientId: string, keyId: string) => {
     if (!confirm("Are you sure you want to revoke this Studio API key? Aggregator requests using it will immediately fail.")) return;
     try {
+      // Optimistic update
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === clientId
+            ? { ...c, tokens: c.tokens.filter((t: any) => t.id !== keyId) }
+            : c
+        )
+      );
       const res = await fetch(`/api/admin/keys?id=${keyId}`, { method: "DELETE" });
+      const data = await res.json();
       if (res.ok) {
+        fetchData();
+      } else {
+        alert(data.error || "Failed to revoke key");
         fetchData();
       }
     } catch (e: any) {
       alert(e.message);
+      fetchData();
+    }
+  };
+
+  // Toggle Client Status (ACTIVE <-> SUSPENDED)
+  const handleToggleStatus = async (client: any) => {
+    const newStatus = client.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    const confirmMsg =
+      newStatus === "SUSPENDED"
+        ? `Are you sure you want to SUSPEND ${client.name}? Live game sessions for this operator will be temporarily paused.`
+        : `Activate ${client.name}? Live game sessions will resume immediately.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      // Optimistic update
+      setClients((prev) =>
+        prev.map((c) => (c.id === client.id ? { ...c, status: newStatus } : c))
+      );
+      const res = await fetch("/api/admin/clients", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: client.id, status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || "Failed to update status");
+        fetchData();
+      }
+    } catch (e: any) {
+      alert(e.message);
+      fetchData();
+    }
+  };
+
+  // Delete Entire Client / Operator
+  const handleDeleteClient = async () => {
+    if (!deleteModal.client) return;
+    const clientId = deleteModal.client.id;
+    setDeleteModal((prev) => ({ ...prev, deleting: true }));
+    try {
+      const res = await fetch(`/api/admin/clients?id=${clientId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Immediate optimistic UI removal
+        setClients((prev) => prev.filter((c) => c.id !== clientId));
+        setDeleteModal({ open: false, client: null, deleting: false });
+        fetchData();
+      } else {
+        alert(data.error || "Failed to delete client");
+        setDeleteModal((prev) => ({ ...prev, deleting: false }));
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to delete client");
+      setDeleteModal((prev) => ({ ...prev, deleting: false }));
     }
   };
 
@@ -676,53 +790,56 @@ export default function StudioAdminPortal() {
         />
       )}
 
-      {/* Left Sidebar (Enterprise Grade) */}
+      {/* Left Sidebar (Enterprise Grade - Fixed Full Height Sticky) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#090d18] border-r border-slate-800/80 flex flex-col justify-between transition-transform duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#090d18] border-r border-slate-800/80 flex flex-col justify-between transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex flex-col h-full">
-          {/* Studio Brand Header */}
-          <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 p-[2px] shadow-xl shadow-amber-500/20 flex items-center justify-center">
-                <div className="w-full h-full bg-[#07090e] rounded-[14px] flex items-center justify-center text-xl">
-                  👑
+        <div className="flex flex-col h-full justify-between min-h-0">
+          {/* Top Header & Telemetry */}
+          <div className="shrink-0">
+            {/* Studio Brand Header */}
+            <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 p-[2px] shadow-xl shadow-amber-500/20 flex items-center justify-center">
+                  <div className="w-full h-full bg-[#07090e] rounded-[14px] flex items-center justify-center text-xl">
+                    👑
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h1 className="text-sm font-black text-white tracking-wider">ROYAL GAMES</h1>
+                    <span className="text-[9px] font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.2 rounded-md">
+                      RGS
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 font-medium">B2B Master Admin Engine</p>
                 </div>
               </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h1 className="text-sm font-black text-white tracking-wider">ROYAL GAMES</h1>
-                  <span className="text-[9px] font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.2 rounded-md">
-                    RGS
-                  </span>
-                </div>
-                <p className="text-[10px] text-gray-400 font-medium">B2B Master Admin Engine</p>
+
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Engine Telemetry Strip */}
+            <div className="px-5 py-3 bg-[#06080e]/60 border-b border-slate-800/60 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className="text-[11px] font-mono font-bold text-emerald-400">ONLINE</span>
               </div>
+              <span className="text-[10px] font-mono text-gray-400">
+                {clients.length} Clients • {STUDIO_GAMES.length} HTML5 Games
+              </span>
             </div>
-
-            <button
-              onClick={() => setMobileSidebarOpen(false)}
-              className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
 
-          {/* Quick Engine Telemetry Strip */}
-          <div className="px-5 py-3 bg-[#06080e]/60 border-b border-slate-800/60 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span className="text-[11px] font-mono font-bold text-emerald-400">ONLINE</span>
-            </div>
-            <span className="text-[10px] font-mono text-gray-400">
-              {clients.length} Clients • {STUDIO_GAMES.length} HTML5 Games
-            </span>
-          </div>
-
-          {/* Nav Links */}
-          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+          {/* Nav Links (Scrollable Section) */}
+          <div className="flex-1 overflow-y-auto min-h-0 px-3 py-4 space-y-6">
             {navItems.map((group, gIdx) => (
               <div key={gIdx} className="space-y-1.5">
                 <div className="px-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider font-mono">
@@ -801,15 +918,15 @@ export default function StudioAdminPortal() {
             </div>
           </div>
 
-          {/* Admin User Footer Card */}
-          <div className="p-4 border-t border-slate-800/80 bg-[#07090e]/80">
+          {/* Admin User Footer Card (Pinned at Screen Bottom) */}
+          <div className="shrink-0 p-4 border-t border-slate-800/80 bg-[#07090e]/95 mt-auto">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-sm font-black text-amber-400">
                   👑
                 </div>
                 <div className="truncate">
-                  <div className="text-xs font-bold text-white truncate">admin</div>
+                  <div className="text-xs font-bold text-white truncate">{adminUser?.username || "admin"}</div>
                   <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Superadmin
                   </div>
@@ -922,43 +1039,88 @@ export default function StudioAdminPortal() {
                     className="bg-[#0b0f19] border border-slate-800/90 rounded-2xl p-5 shadow-lg space-y-4 transition-all hover:border-slate-700"
                   >
                     {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                      <div className="flex items-start sm:items-center gap-3.5">
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold shrink-0 ${
+                          client.status === "ACTIVE"
+                            ? "bg-amber-500/10 border border-amber-500/30 text-amber-400"
+                            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                        }`}>
                           <Users className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-black text-white">{client.name}</h3>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-black text-white">{client.name}</h3>
+                            {client.isAdmin && (
+                              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                                MASTER ADMIN
+                              </span>
+                            )}
                             <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                              className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1 ${
                                 client.status === "ACTIVE"
                                   ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                                   : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
                               }`}
                             >
-                              {client.status}
+                              <span className={`w-1.5 h-1.5 rounded-full ${client.status === "ACTIVE" ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+                              <span>{client.status}</span>
                             </span>
                           </div>
-                          <p className="text-xs text-gray-400 font-mono">{client.email}</p>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400 mt-1 font-mono">
+                            <span>{client.email}</span>
+                            {client.callbackUrl && (
+                              <span className="text-gray-500 text-[11px] truncate max-w-xs sm:max-w-md">
+                                Callback: <code className="text-slate-400">{client.callbackUrl}</code>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <div className="text-right hidden sm:block">
+                      {/* Header Actions */}
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="text-right mr-2 hidden sm:block">
                           <span className="text-[10px] text-gray-400 uppercase font-bold block">Lifetime Activity</span>
                           <span className="text-xs font-mono text-amber-400 font-bold">
                             {client.sessionsCount} Sessions • {client.roundsCount} Rounds
                           </span>
                         </div>
 
+                        {/* Status Toggle Button */}
+                        <button
+                          onClick={() => handleToggleStatus(client)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                            client.status === "ACTIVE"
+                              ? "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300"
+                              : "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
+                          }`}
+                          title={client.status === "ACTIVE" ? "Suspend Client" : "Activate Client"}
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                          <span>{client.status === "ACTIVE" ? "Suspend" : "Activate"}</span>
+                        </button>
+
+                        {/* New API Key Button */}
                         <button
                           onClick={() => handleGenerateKey(client.id)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-amber-300 transition-colors"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>New API Key</span>
+                          <span>New Key</span>
                         </button>
+
+                        {/* Delete Entire Client Button */}
+                        {!client.isAdmin && (
+                          <button
+                            onClick={() => setDeleteModal({ open: true, client, deleting: false })}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
+                            title="Delete this client and remove all keys"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete Client</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -1005,86 +1167,103 @@ export default function StudioAdminPortal() {
 
                     {/* Active API Keys Table */}
                     <div className="space-y-2">
-                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
-                        Assigned Studio API Keys & Secrets
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                          Assigned Studio API Keys & Secrets ({client.tokens?.length || 0})
+                        </span>
+                      </div>
 
-                      {client.tokens.map((token: any) => {
-                        const isSecretVisible = revealedSecrets[token.id];
-                        return (
-                          <div
-                            key={token.id}
-                            className="bg-[#080a10] border border-slate-800/80 rounded-xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      {!client.tokens || client.tokens.length === 0 ? (
+                        <div className="bg-[#080a10] border border-dashed border-slate-800 rounded-xl p-4 text-center flex flex-col sm:flex-row items-center justify-between gap-3">
+                          <p className="text-xs text-gray-400">
+                            No active API keys found for this client. API requests cannot authenticate without a key.
+                          </p>
+                          <button
+                            onClick={() => handleGenerateKey(client.id)}
+                            className="text-xs font-bold text-amber-400 hover:text-amber-300 underline shrink-0"
                           >
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-white">{token.name}</span>
-                                <span className="text-[10px] text-gray-500 font-mono">
-                                  Created {new Date(token.createdAt).toLocaleDateString()}
-                                </span>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
-                                {/* Token */}
-                                <div className="flex items-center gap-2 bg-[#0c101a] px-3 py-1 rounded-lg border border-slate-800">
-                                  <span className="text-gray-500 text-[10px] font-sans font-bold">API TOKEN:</span>
-                                  <span className="text-amber-400 font-bold">{token.token}</span>
-                                  <button
-                                    onClick={() => copyToClipboard(token.token, `tok_${token.id}`)}
-                                    className="text-gray-400 hover:text-white transition-colors"
-                                    title="Copy API Token"
-                                  >
-                                    {copiedKeyId === `tok_${token.id}` ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
-
-                                {/* Secret Key */}
-                                <div className="flex items-center gap-2 bg-[#0c101a] px-3 py-1 rounded-lg border border-slate-800">
-                                  <span className="text-gray-500 text-[10px] font-sans font-bold">SECRET KEY:</span>
-                                  <span className="text-emerald-400">
-                                    {isSecretVisible ? token.secretKey : "••••••••••••••••••••••••••••••••"}
-                                  </span>
-                                  <button
-                                    onClick={() =>
-                                      setRevealedSecrets((prev) => ({
-                                        ...prev,
-                                        [token.id]: !prev[token.id],
-                                      }))
-                                    }
-                                    className="text-gray-400 hover:text-white transition-colors"
-                                    title={isSecretVisible ? "Hide Secret" : "Reveal Secret"}
-                                  >
-                                    {isSecretVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                  </button>
-                                  <button
-                                    onClick={() => copyToClipboard(token.secretKey, `sec_${token.id}`)}
-                                    className="text-gray-400 hover:text-white transition-colors"
-                                    title="Copy Secret Key"
-                                  >
-                                    {copiedKeyId === `sec_${token.id}` ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={() => handleRevokeKey(token.id)}
-                              className="self-end md:self-center p-2 text-gray-500 hover:text-rose-400 transition-colors"
-                              title="Revoke Key"
+                            + Generate API Key Now
+                          </button>
+                        </div>
+                      ) : (
+                        client.tokens.map((token: any) => {
+                          const isSecretVisible = revealedSecrets[token.id];
+                          return (
+                            <div
+                              key={token.id}
+                              className="bg-[#080a10] border border-slate-800/80 rounded-xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4"
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        );
-                      })}
+                              <div className="space-y-1.5 flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-white">{token.name}</span>
+                                  <span className="text-[10px] text-gray-500 font-mono">
+                                    Created {new Date(token.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
+                                  {/* Token */}
+                                  <div className="flex items-center gap-2 bg-[#0c101a] px-3 py-1 rounded-lg border border-slate-800">
+                                    <span className="text-gray-500 text-[10px] font-sans font-bold">API TOKEN:</span>
+                                    <span className="text-amber-400 font-bold select-all">{token.token}</span>
+                                    <button
+                                      onClick={() => copyToClipboard(token.token, `tok_${token.id}`)}
+                                      className="text-gray-400 hover:text-white transition-colors"
+                                      title="Copy API Token"
+                                    >
+                                      {copiedKeyId === `tok_${token.id}` ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+
+                                  {/* Secret Key */}
+                                  <div className="flex items-center gap-2 bg-[#0c101a] px-3 py-1 rounded-lg border border-slate-800">
+                                    <span className="text-gray-500 text-[10px] font-sans font-bold">SECRET KEY:</span>
+                                    <span className="text-emerald-400 select-all">
+                                      {isSecretVisible ? token.secretKey : "••••••••••••••••••••••••••••••••"}
+                                    </span>
+                                    <button
+                                      onClick={() =>
+                                        setRevealedSecrets((prev) => ({
+                                          ...prev,
+                                          [token.id]: !prev[token.id],
+                                        }))
+                                      }
+                                      className="text-gray-400 hover:text-white transition-colors"
+                                      title={isSecretVisible ? "Hide Secret" : "Reveal Secret"}
+                                    >
+                                      {isSecretVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                    </button>
+                                    <button
+                                      onClick={() => copyToClipboard(token.secretKey, `sec_${token.id}`)}
+                                      className="text-gray-400 hover:text-white transition-colors"
+                                      title="Copy Secret Key"
+                                    >
+                                      {copiedKeyId === `sec_${token.id}` ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => handleRevokeKey(client.id, token.id)}
+                                className="self-end md:self-center p-2 text-gray-500 hover:text-rose-400 transition-colors flex items-center gap-1 text-xs font-semibold"
+                                title="Revoke this API Key"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                <span className="md:hidden">Revoke Key</span>
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
                 ))
@@ -2703,8 +2882,43 @@ export async function POST(req: Request) {
                   onChange={(e) => setNewClientEmail(e.target.value)}
                   placeholder="operator@royalggr.com"
                   required
-                  className="w-full bg-[#07090e] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-[#07090e] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
+              </div>
+
+              {/* Password Field */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-gray-300">Operator Portal Password</label>
+                  <button
+                    type="button"
+                    onClick={() => setNewClientPassword(`Royal@${Math.floor(1000 + Math.random() * 9000)}!`)}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Auto Generate</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showNewClientPassword ? "text" : "password"}
+                    value={newClientPassword}
+                    onChange={(e) => setNewClientPassword(e.target.value)}
+                    placeholder="Enter password"
+                    required
+                    className="w-full bg-[#07090e] border border-slate-700 rounded-xl pl-3.5 pr-10 py-2 text-xs text-emerald-400 font-mono focus:outline-none focus:border-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewClientPassword(!showNewClientPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    {showNewClientPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Operator will use this email & password to sign in at <code className="text-slate-400">/portal/login</code>
+                </p>
               </div>
 
               <div>
@@ -2740,12 +2954,167 @@ export async function POST(req: Request) {
                 <button
                   type="submit"
                   disabled={creatingClient}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-xs font-extrabold shadow-lg shadow-amber-500/20"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-xs font-extrabold shadow-lg shadow-amber-500/20 flex items-center gap-2"
                 >
-                  {creatingClient ? "Generating Credentials..." : "Generate API Key & Register"}
+                  {creatingClient ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Creating & Sending Email...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Create Client & Send Email</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Created Client Success Modal */}
+      {createdSuccessModal.open && createdSuccessModal.credentials && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0c101c] border border-emerald-500/50 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-emerald-400 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5" />
+                <span>Client Account & API Keys Created!</span>
+              </h3>
+              <button
+                onClick={() => setCreatedSuccessModal({ open: false, credentials: null })}
+                className="text-gray-400 hover:text-white text-xs font-bold"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {/* Email dispatch notice */}
+            {createdSuccessModal.credentials.emailResult?.success ? (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 flex items-center gap-2.5 text-xs text-emerald-300">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  Welcome email containing login and API credentials was sent to <strong>{createdSuccessModal.credentials.email}</strong>.
+                </span>
+              </div>
+            ) : (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-300">
+                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Account created in database.</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    SMTP is not configured in .env. You can copy the credentials below and send them directly to the client.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Credentials box */}
+            <div className="bg-[#07090e] border border-slate-800 rounded-2xl p-4 space-y-3 text-xs font-mono">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-gray-400 font-sans">Company:</span>
+                <span className="font-bold text-white">{createdSuccessModal.credentials.name}</span>
+              </div>
+
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-gray-400 font-sans">Portal URL:</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sky-400">{createdSuccessModal.credentials.portalUrl}</span>
+                  <button
+                    onClick={() => copyToClipboard(createdSuccessModal.credentials!.portalUrl, "portal_url")}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    {copiedKeyId === "portal_url" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-gray-400 font-sans">Login Email:</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-bold">{createdSuccessModal.credentials.email}</span>
+                  <button
+                    onClick={() => copyToClipboard(createdSuccessModal.credentials!.email, "cred_email")}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    {copiedKeyId === "cred_email" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-gray-400 font-sans">Portal Password:</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-emerald-400 font-bold">{createdSuccessModal.credentials.password}</span>
+                  <button
+                    onClick={() => copyToClipboard(createdSuccessModal.credentials!.password, "cred_pass")}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    {copiedKeyId === "cred_pass" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 border-b border-slate-800 pb-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 font-sans text-[11px]">API Token:</span>
+                  <button
+                    onClick={() => copyToClipboard(createdSuccessModal.credentials!.token, "cred_tok")}
+                    className="text-gray-400 hover:text-white flex items-center gap-1 text-[11px]"
+                  >
+                    {copiedKeyId === "cred_tok" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>Copy</span>
+                  </button>
+                </div>
+                <span className="text-amber-400 text-[11px] break-all select-all">{createdSuccessModal.credentials.token}</span>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 font-sans text-[11px]">Secret Key:</span>
+                  <button
+                    onClick={() => copyToClipboard(createdSuccessModal.credentials!.secretKey, "cred_sec")}
+                    className="text-gray-400 hover:text-white flex items-center gap-1 text-[11px]"
+                  >
+                    {copiedKeyId === "cred_sec" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>Copy</span>
+                  </button>
+                </div>
+                <span className="text-emerald-400 text-[11px] break-all select-all">{createdSuccessModal.credentials.secretKey}</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const creds = createdSuccessModal.credentials!;
+                  const summary = `👑 ROYAL GAMES STUDIO - CLIENT CREDENTIALS
+Company: ${creds.name}
+Portal Login: ${creds.portalUrl}
+Email: ${creds.email}
+Password: ${creds.password}
+
+API Token: ${creds.token}
+Secret Key: ${creds.secretKey}
+Callback URL: ${creds.callbackUrl || "N/A"}`;
+                  copyToClipboard(summary, "all_creds");
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors"
+              >
+                {copiedKeyId === "all_creds" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedKeyId === "all_creds" ? "Copied All Details!" : "Copy All Credentials"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreatedSuccessModal({ open: false, credentials: null })}
+                className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2869,6 +3238,93 @@ export async function POST(req: Request) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Client Confirmation Modal */}
+      {deleteModal.open && deleteModal.client && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0c101c] border border-rose-500/50 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-rose-400 flex items-center gap-2">
+                <Trash2 className="w-5 h-5" />
+                <span>Delete B2B Client / Aggregator</span>
+              </h3>
+              <button
+                onClick={() => setDeleteModal({ open: false, client: null, deleting: false })}
+                className="text-gray-400 hover:text-white text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="bg-[#080a10] border border-slate-800 rounded-xl p-3.5 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Client Name:</span>
+                  <span className="font-bold text-white">{deleteModal.client.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Email:</span>
+                  <span className="font-mono text-gray-300">{deleteModal.client.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Prepaid Balance:</span>
+                  <span className="font-mono text-emerald-400 font-bold">
+                    ₹{Number(deleteModal.client.balance || 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Active History:</span>
+                  <span className="font-mono text-amber-400 font-bold">
+                    {deleteModal.client.sessionsCount || 0} Sessions • {deleteModal.client.roundsCount || 0} Rounds
+                  </span>
+                </div>
+              </div>
+
+              {((deleteModal.client.sessionsCount || 0) > 0 || (deleteModal.client.roundsCount || 0) > 0) && (
+                <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 flex items-start gap-2.5 text-rose-300">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] leading-relaxed">
+                    <strong>Warning:</strong> This operator has active game sessions and round history. Deleting will permanently remove this client, all assigned API keys, game sessions, and round audit records.
+                  </p>
+                </div>
+              )}
+
+              <p className="text-slate-400 text-xs">
+                Are you sure you want to permanently delete <strong className="text-white">{deleteModal.client.name}</strong>? This action cannot be undone.
+              </p>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={deleteModal.deleting}
+                  onClick={() => setDeleteModal({ open: false, client: null, deleting: false })}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-gray-300 hover:text-white font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteModal.deleting}
+                  onClick={handleDeleteClient}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 font-black text-white shadow-lg shadow-rose-600/30 transition-all flex items-center gap-2"
+                >
+                  {deleteModal.deleting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting Client...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Confirm Permanent Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
