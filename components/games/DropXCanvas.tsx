@@ -82,12 +82,30 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
 
       // 2. Compute Pin Pyramid Positions
       const pinRadius = rows >= 14 ? 2.5 : 3.5;
-      const topY = Math.max(22, height * 0.05);
+      const topY = Math.max(26, height * 0.06);
       const bottomY = height - 42;
       const rowSpacing = (bottomY - topY) / (rows + 0.5);
 
       const maxRowWidth = Math.min(width * 0.92, (rows + 2) * 38);
       const pinSpacing = maxRowWidth / (rows + 2);
+
+      // 2a. Draw Sleek Top Neon Ball Dispenser Funnel
+      ctx.save();
+      ctx.fillStyle = "#0f172a";
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = "#38bdf8";
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.roundRect(width / 2 - 18, topY - 24, 36, 14, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.arc(width / 2, topY - 17, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
 
       const pins: Array<{ x: number; y: number; row: number; col: number }> = [];
 
@@ -104,7 +122,7 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
 
       // 3. Draw Metallic Neon Glowing Pins
       pins.forEach((pin) => {
-        ctx.fillStyle = "#e2e8f0";
+        ctx.fillStyle = "#f1f5f9";
         ctx.shadowColor = "#38bdf8";
         ctx.shadowBlur = 5;
         ctx.beginPath();
@@ -128,12 +146,13 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         ctx.stroke();
       }
 
-      // 5. Draw Multiplier Landing Buckets at the Bottom
+      // 5. Draw Multiplier Landing Buckets at the Bottom (Stake-Style Symmetrical Rainbow Heatmap)
       const numBuckets = multipliers.length;
       const totalBucketWidth = Math.min(width * 0.94, numBuckets * (pinSpacing + 1));
       const bucketWidth = totalBucketWidth / numBuckets;
       const bucketStartX = width / 2 - totalBucketWidth / 2;
       const bucketY = height - 22;
+      const centerIdx = (numBuckets - 1) / 2;
 
       multipliers.forEach((mult, idx) => {
         const bx = bucketStartX + idx * bucketWidth;
@@ -142,50 +161,73 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
           bucketBounceRef.current[idx] = Math.max(0, bucketBounceRef.current[idx] - 0.08);
         }
 
-        // Color Gradient based on Multiplier Magnitude
-        let bucketColor = "#0284c7"; // Cyan
-        let glowColor = "#38bdf8";
-        if (mult >= 100) {
-          bucketColor = "#e11d48"; // Ruby red jackpot
-          glowColor = "#f43f5e";
-        } else if (mult >= 20) {
-          bucketColor = "#ea580c"; // Fiery orange
-          glowColor = "#f97316";
-        } else if (mult >= 4) {
-          bucketColor = "#ca8a04"; // Gold
-          glowColor = "#eab308";
-        } else if (mult >= 1.4) {
-          bucketColor = "#059669"; // Emerald
-          glowColor = "#10b981";
-        } else if (mult <= 0.6) {
-          bucketColor = "#334155"; // Slate / Dark for loss buckets
-          glowColor = "#64748b";
+        // Distance from center: 0.0 = center, 1.0 = outer edge
+        const distFromCenter = centerIdx > 0 ? Math.abs(idx - centerIdx) / centerIdx : 0;
+
+        // Premium Stake & BGaming Heatmap Palette
+        let bucketBg = "#eab308";
+        let glowColor = "#fde047";
+        let textColor = "#000000";
+
+        if (distFromCenter >= 0.85) {
+          // Outermost Wing Jackpot (e.g. 22x, 76x, 1000x)
+          bucketBg = "#ef4444"; // Crimson Red
+          glowColor = "#f87171";
+          textColor = "#ffffff";
+        } else if (distFromCenter >= 0.65) {
+          // High Multipliers (e.g. 5x, 10x, 26x)
+          bucketBg = "#f97316"; // Fiery Tangerine
+          glowColor = "#fb923c";
+          textColor = "#ffffff";
+        } else if (distFromCenter >= 0.45) {
+          // Medium Multipliers (e.g. 2x, 3x, 4x)
+          bucketBg = "#10b981"; // Emerald Green
+          glowColor = "#34d399";
+          textColor = "#ffffff";
+        } else if (distFromCenter >= 0.25) {
+          // Small Return (e.g. 1.4x, 1.3x)
+          bucketBg = "#06b6d4"; // Electric Cyan
+          glowColor = "#22d3ee";
+          textColor = "#ffffff";
+        } else if (distFromCenter > 0.05) {
+          // Flanking Loss Buckets (e.g. 0.6x, 0.7x)
+          bucketBg = "#fb923c"; // Warm Peach / Amber Orange
+          glowColor = "#fdba74";
+          textColor = "#1e293b";
+        } else {
+          // Dead Center Minimum (e.g. 0.4x, 0.2x)
+          bucketBg = "#fbbf24"; // Radiant Gold Yellow
+          glowColor = "#fef08a";
+          textColor = "#0f172a";
         }
 
         ctx.save();
-        ctx.translate(bx + bucketWidth / 2, bucketY - bounce * 6);
+        ctx.translate(bx + bucketWidth / 2, bucketY - bounce * 7);
 
-        // Bucket Shadow / Glow
+        // Active Bounce Glow Aura
         if (bounce > 0.05) {
           ctx.shadowColor = glowColor;
-          ctx.shadowBlur = 16;
+          ctx.shadowBlur = 20;
+        } else {
+          ctx.shadowColor = glowColor;
+          ctx.shadowBlur = 4;
         }
 
-        // Bucket Body
-        ctx.fillStyle = bucketColor;
+        // Bucket Capsule Body
+        ctx.fillStyle = bucketBg;
         ctx.beginPath();
         ctx.roundRect(-bucketWidth * 0.46, -11, bucketWidth * 0.92, 22, 5);
         ctx.fill();
 
-        // Bucket Border
-        ctx.strokeStyle = glowColor;
-        ctx.lineWidth = 1.2;
+        // Bucket Crisp Top Highlight Bevel
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+        ctx.lineWidth = 1.0;
         ctx.stroke();
 
-        // Bucket Multiplier Text
-        ctx.fillStyle = mult <= 0.6 ? "#cbd5e1" : "#ffffff";
+        // Multiplier Value Label
+        ctx.fillStyle = textColor;
         const fontSize = Math.max(6.5, Math.min(9.5, bucketWidth * 0.38));
-        ctx.font = `bold ${fontSize}px monospace`;
+        ctx.font = `900 ${fontSize}px ui-monospace, SFMono-Regular, monospace`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(`${mult}x`, 0, 0);
@@ -198,11 +240,11 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         const ball = activeBallsRef.current[i];
         if (ball.isLanded) continue;
 
-        // Initialize ball above top center
+        // Initialize ball at top dispenser funnel
         if (!ball.initialized) {
           ball.x = width / 2;
-          ball.y = topY - 16;
-          ball.vx = (Math.random() - 0.5) * 0.4;
+          ball.y = topY - 14;
+          ball.vx = (Math.random() - 0.5) * 0.3;
           ball.vy = 2.2;
           ball.currentRow = 0;
           ball.initialized = true;
@@ -215,7 +257,6 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         ball.y += ball.vy;
 
         // Determine current target X based on path steps
-        // Ball descends row by row
         const currentR = Math.floor((ball.y - topY + rowSpacing * 0.5) / rowSpacing);
         const clampedRow = Math.max(0, Math.min(rows, currentR));
 
@@ -228,7 +269,7 @@ export const DropXCanvas: React.FC<DropXCanvasProps> = ({
         const targetX = width / 2 + accumulatedDecisions * pinSpacing;
         const dxToTarget = targetX - ball.x;
 
-        // Subtle guiding magnetic force toward path decision
+        // Subtle guiding force toward path decision
         ball.vx += dxToTarget * 0.04;
         ball.vx *= 0.94; // damping
 
