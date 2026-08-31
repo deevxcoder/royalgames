@@ -21,20 +21,32 @@ interface LuckyWheelGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 type WheelRisk = "LOW" | "MEDIUM" | "HIGH";
 
-const WHEEL_RISK_SEGMENTS: Record<WheelRisk, number[]> = {
-  LOW: [1.2, 0.0, 1.5, 0.0, 2.0, 0.0, 1.2, 0.0, 3.0, 0.0, 1.5, 0.0, 2.0, 0.0, 5.0, 0.0],
-  MEDIUM: [1.5, 0.0, 2.0, 0.0, 3.0, 0.0, 1.5, 0.0, 5.0, 0.0, 2.0, 0.0, 10.0, 0.0, 20.0, 0.0],
-  HIGH: [2.0, 0.0, 5.0, 0.0, 10.0, 0.0, 2.0, 0.0, 25.0, 0.0, 5.0, 0.0, 50.0, 0.0, 100.0, 0.0],
+const BASE_WHEEL_SEGMENTS: Record<WheelRisk, number[]> = {
+  LOW: [1.5, 0.0, 1.2, 0.0, 2.0, 0.0, 1.2, 0.0, 2.5, 0.0, 1.5, 0.0, 1.8, 0.0, 3.5, 0.0],
+  MEDIUM: [2.0, 0.0, 1.5, 0.0, 3.0, 0.0, 0.0, 0.0, 5.0, 0.0, 1.8, 0.0, 2.0, 0.0, 0.0, 0.0],
+  HIGH: [3.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 20.0, 0.0, 0.0, 0.0],
 };
+
+function getDynamicWheelSegments(targetRtp: number = 96.0): Record<WheelRisk, number[]> {
+  const scaling = Math.max(0.75, Math.min(1.05, targetRtp / 96.0));
+  const res: Record<WheelRisk, number[]> = {} as any;
+  for (const r in BASE_WHEEL_SEGMENTS) {
+    const risk = r as WheelRisk;
+    res[risk] = BASE_WHEEL_SEGMENTS[risk].map((m) => (m === 0 ? 0 : Number((m * scaling).toFixed(1))));
+  }
+  return res;
+}
 
 export const LuckyWheelGame: React.FC<LuckyWheelGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  liveRtp = 96.0,
 }) => {
   const [betAmount, setBetAmount] = useState(50);
   const [risk, setRisk] = useState<WheelRisk>("MEDIUM");
@@ -42,19 +54,27 @@ export const LuckyWheelGame: React.FC<LuckyWheelGameProps> = ({
   const [targetAngle, setTargetAngle] = useState(0);
   const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
   const [isMiss, setIsMiss] = useState(false);
-  const [spinHistory, setSpinHistory] = useState<number[]>([2.0, 0.0, 5.0, 1.5, 0.0, 100.0, 0.0]);
+  const [spinHistory, setSpinHistory] = useState<number[]>([2.0, 0.0, 3.0, 1.5, 0.0, 5.0, 0.0]);
 
-  const activeSegments = WHEEL_RISK_SEGMENTS[risk];
+  const balanceRef = React.useRef(playerBalance);
+  React.useEffect(() => {
+    balanceRef.current = playerBalance;
+  }, [playerBalance]);
+
+  const dynamicSegments = React.useMemo(() => getDynamicWheelSegments(liveRtp), [liveRtp]);
+  const activeSegments = dynamicSegments[risk];
 
   // 1. Spin Wheel Action
   const spinWheel = () => {
     if (isSpinning) return;
-    if (playerBalance < betAmount) {
+    if (balanceRef.current < betAmount) {
       alert("Insufficient Balance");
       return;
     }
 
-    onUpdateBalance(playerBalance - betAmount);
+    balanceRef.current = Number((balanceRef.current - betAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setIsSpinning(true);
     setLastWin(null);
     setIsMiss(false);
@@ -72,7 +92,9 @@ export const LuckyWheelGame: React.FC<LuckyWheelGameProps> = ({
       setSpinHistory((prev) => [wonMult, ...prev.slice(0, 9)]);
 
       if (wonMult > 0) {
-        onUpdateBalance(playerBalance + winAmount);
+        balanceRef.current = Number((balanceRef.current + winAmount).toFixed(2));
+        onUpdateBalance(balanceRef.current);
+
         setLastWin({ amount: winAmount, multiplier: wonMult });
         setIsMiss(false);
 
@@ -95,7 +117,7 @@ export const LuckyWheelGame: React.FC<LuckyWheelGameProps> = ({
         onRecordRound({ bet: betAmount, win: winAmount, multiplier: wonMult });
       }
     },
-    [betAmount, playerBalance, onUpdateBalance, onRecordRound, activeSegments]
+    [betAmount, onUpdateBalance, onRecordRound, activeSegments]
   );
 
   return (

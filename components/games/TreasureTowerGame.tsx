@@ -24,33 +24,34 @@ interface TreasureTowerGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 type TowerDifficulty = "EASY" | "MEDIUM" | "HARD" | "EXTREME";
 
-const TOWER_CONFIG: Record<
+const BASE_TOWER_CONFIG: Record<
   TowerDifficulty,
   { doorsPerFloor: number; safeDoors: number; multipliers: number[] }
 > = {
   EASY: {
     doorsPerFloor: 4,
     safeDoors: 3,
-    multipliers: [1.25, 1.65, 2.2, 3.0, 4.2, 6.0, 9.0, 15.0],
+    multipliers: [1.22, 1.60, 2.10, 2.85, 3.90, 5.5, 8.2, 13.5],
   },
   MEDIUM: {
     doorsPerFloor: 3,
     safeDoors: 2,
-    multipliers: [1.45, 2.15, 3.25, 5.0, 7.8, 12.5, 22.0, 45.0],
+    multipliers: [1.40, 2.05, 3.10, 4.70, 7.20, 11.5, 19.5, 40.0],
   },
   HARD: {
     doorsPerFloor: 2,
     safeDoors: 1,
-    multipliers: [1.9, 3.8, 7.6, 15.2, 30.4, 60.8, 121.6, 250.0],
+    multipliers: [1.85, 3.65, 7.20, 14.2, 28.0, 56.0, 110.0, 230.0],
   },
   EXTREME: {
     doorsPerFloor: 3,
     safeDoors: 1,
-    multipliers: [2.85, 8.5, 25.5, 76.5, 150.0, 220.0, 300.0, 500.0],
+    multipliers: [2.75, 8.0, 23.5, 70.0, 135.0, 200.0, 275.0, 450.0],
   },
 };
 
@@ -58,6 +59,7 @@ export const TreasureTowerGame: React.FC<TreasureTowerGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  liveRtp = 96.0,
 }) => {
   const [betAmount, setBetAmount] = useState(50);
   const [difficulty, setDifficulty] = useState<TowerDifficulty>("MEDIUM");
@@ -65,24 +67,36 @@ export const TreasureTowerGame: React.FC<TreasureTowerGameProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isWinner, setIsWinner] = useState(false);
-  const [towerHistory, setTowerHistory] = useState<number[]>([2.15, 5.0, 1.45, 12.5, 3.25, 1.0]);
+  const [towerHistory, setTowerHistory] = useState<number[]>([2.05, 4.7, 1.40, 11.5, 3.10, 1.0]);
   const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
 
-  const activeMultipliers = TOWER_CONFIG[difficulty].multipliers;
-  const doorsCount = TOWER_CONFIG[difficulty].doorsPerFloor;
-  const safeDoorsCount = TOWER_CONFIG[difficulty].safeDoors;
+  const balanceRef = React.useRef(playerBalance);
+  React.useEffect(() => {
+    balanceRef.current = playerBalance;
+  }, [playerBalance]);
+
+  // Scaled multipliers based on liveRtp
+  const scaling = Math.max(0.75, Math.min(1.05, (liveRtp || 96.0) / 96.0));
+  const activeMultipliers = React.useMemo(() => {
+    return BASE_TOWER_CONFIG[difficulty].multipliers.map((m) => Number((m * scaling).toFixed(2)));
+  }, [difficulty, scaling]);
+
+  const doorsCount = BASE_TOWER_CONFIG[difficulty].doorsPerFloor;
+  const safeDoorsCount = BASE_TOWER_CONFIG[difficulty].safeDoors;
 
   const currentMultiplier = currentFloor === 0 ? 1.0 : activeMultipliers[currentFloor - 1];
   const cashoutValue = Number((betAmount * currentMultiplier).toFixed(2));
 
   // 1. Start Tower Climb
   const startClimb = () => {
-    if (playerBalance < betAmount) {
+    if (balanceRef.current < betAmount) {
       alert("Insufficient Balance");
       return;
     }
 
-    onUpdateBalance(playerBalance - betAmount);
+    balanceRef.current = Number((balanceRef.current - betAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setCurrentFloor(0);
     setIsPlaying(true);
     setIsGameOver(false);
@@ -91,12 +105,14 @@ export const TreasureTowerGame: React.FC<TreasureTowerGameProps> = ({
     sound.playCardDeal();
   };
 
-  // 2. Pick Door / Chest on Active Floor
+  // 2. Pick Door / Chest on Active Floor with dynamic House Edge
   const handleDoorPick = (doorIdx: number) => {
     if (!isPlaying || isGameOver || currentFloor >= 8) return;
 
-    // Determine if safe based on probability
-    const isSafe = Math.random() < safeDoorsCount / doorsCount;
+    // Determine if safe based on probability calibrated to liveRtp
+    const naturalSafeProb = safeDoorsCount / doorsCount;
+    const rtpFactor = Math.max(0.8, Math.min(1.0, (liveRtp || 96.0) / 100));
+    const isSafe = Math.random() < naturalSafeProb * rtpFactor;
 
     if (isSafe) {
       const nextFloor = currentFloor + 1;
@@ -133,7 +149,9 @@ export const TreasureTowerGame: React.FC<TreasureTowerGameProps> = ({
     const finalMult = customMult || currentMultiplier;
     const winAmount = Number((betAmount * finalMult).toFixed(2));
 
-    onUpdateBalance(playerBalance + winAmount);
+    balanceRef.current = Number((balanceRef.current + winAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setLastWin({ amount: winAmount, multiplier: finalMult });
     setIsPlaying(false);
     setIsWinner(true);

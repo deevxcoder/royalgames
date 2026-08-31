@@ -299,6 +299,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}
@@ -310,6 +311,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}
@@ -321,6 +323,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}
@@ -344,6 +347,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}
@@ -355,6 +359,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}
@@ -366,6 +371,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}
@@ -377,6 +383,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}
@@ -388,6 +395,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}
@@ -399,6 +407,7 @@ export default function PlaySessionPage() {
                 playerBalance={playerBalance}
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
+                liveRtp={liveRtp}
               />
             </div>
           )}

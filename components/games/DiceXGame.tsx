@@ -23,12 +23,14 @@ interface DiceXGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 export const DiceXGame: React.FC<DiceXGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  liveRtp = 96.0,
 }) => {
   const [betAmount, setBetAmount] = useState(50);
   const [targetNumber, setTargetNumber] = useState(50);
@@ -39,21 +41,29 @@ export const DiceXGame: React.FC<DiceXGameProps> = ({
   const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
   const [diceHistory, setDiceHistory] = useState<number[]>([64, 18, 85, 42, 91, 55, 33]);
 
-  // Win Probability & Multiplier Math (99.0% RTP)
+  const balanceRef = React.useRef(playerBalance);
+  React.useEffect(() => {
+    balanceRef.current = playerBalance;
+  }, [playerBalance]);
+
+  // Win Probability & Multiplier Math dynamically scaled to liveRtp
+  const activeRtp = liveRtp || 96.0;
   const winChance = rollMode === "OVER" ? 100 - targetNumber : targetNumber;
-  const multiplier = Number((99.0 / winChance).toFixed(2));
+  const multiplier = Number((activeRtp / Math.max(1, winChance)).toFixed(2));
   const totalPayout = Number((betAmount * multiplier).toFixed(2));
   const profitOnWin = Number((totalPayout - betAmount).toFixed(2));
 
   // Roll Dice Action
   const rollDice = () => {
     if (isRolling) return;
-    if (playerBalance < betAmount) {
+    if (balanceRef.current < betAmount) {
       alert("Insufficient Balance");
       return;
     }
 
-    onUpdateBalance(playerBalance - betAmount);
+    balanceRef.current = Number((balanceRef.current - betAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setIsRolling(true);
     setDiceResult(null);
     setIsWin(null);
@@ -71,7 +81,9 @@ export const DiceXGame: React.FC<DiceXGameProps> = ({
       setDiceHistory((prev) => [roll, ...prev.slice(0, 9)]);
 
       if (won) {
-        onUpdateBalance(playerBalance + totalPayout);
+        balanceRef.current = Number((balanceRef.current + totalPayout).toFixed(2));
+        onUpdateBalance(balanceRef.current);
+
         setLastWin({ amount: totalPayout, multiplier });
         sound.playWin();
         confetti({ particleCount: 65, spread: 65, origin: { y: 0.6 } });

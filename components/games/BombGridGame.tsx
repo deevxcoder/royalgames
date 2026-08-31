@@ -23,6 +23,7 @@ interface BombGridGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 interface TileState {
@@ -36,6 +37,7 @@ export const BombGridGame: React.FC<BombGridGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  liveRtp = 96.0,
 }) => {
   const [betAmount, setBetAmount] = useState(50);
   const [mineCount, setMineCount] = useState(3);
@@ -53,7 +55,12 @@ export const BombGridGame: React.FC<BombGridGameProps> = ({
   const [revealedCount, setRevealedCount] = useState(0);
   const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
 
-  // Calculate Provably Fair multiplier for X gems found
+  const balanceRef = React.useRef(playerBalance);
+  React.useEffect(() => {
+    balanceRef.current = playerBalance;
+  }, [playerBalance]);
+
+  // Calculate Provably Fair multiplier for X gems found scaled to liveRtp
   const getMultiplierForGems = useCallback(
     (gems: number, mines: number) => {
       if (gems === 0) return 1.0;
@@ -62,9 +69,10 @@ export const BombGridGame: React.FC<BombGridGameProps> = ({
       for (let i = 0; i < gems; i++) {
         mult *= (25 - i) / (totalSafe - i);
       }
-      return Number((mult * 0.985).toFixed(2));
+      const rtpFactor = Math.max(0.75, Math.min(0.99, (liveRtp || 96.0) / 100));
+      return Number((mult * rtpFactor).toFixed(2));
     },
-    []
+    [liveRtp]
   );
 
   const currentMultiplier = getMultiplierForGems(revealedCount, mineCount);
@@ -76,12 +84,14 @@ export const BombGridGame: React.FC<BombGridGameProps> = ({
 
   // 1. Start New Minefield Game
   const startGridGame = () => {
-    if (playerBalance < betAmount) {
+    if (balanceRef.current < betAmount) {
       alert("Insufficient Balance");
       return;
     }
 
-    onUpdateBalance(playerBalance - betAmount);
+    balanceRef.current = Number((balanceRef.current - betAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setLastWin(null);
     setIsGameOver(false);
     setIsWinner(false);
@@ -165,7 +175,9 @@ export const BombGridGame: React.FC<BombGridGameProps> = ({
     const finalMult = customMult || currentMultiplier;
     const winAmount = Number((betAmount * finalMult).toFixed(2));
 
-    onUpdateBalance(playerBalance + winAmount);
+    balanceRef.current = Number((balanceRef.current + winAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setLastWin({ amount: winAmount, multiplier: finalMult });
     setIsPlaying(false);
     setIsWinner(true);

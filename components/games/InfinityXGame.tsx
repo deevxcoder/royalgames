@@ -23,12 +23,14 @@ interface InfinityXGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 export const InfinityXGame: React.FC<InfinityXGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  liveRtp = 96.0,
 }) => {
   const [betAmount, setBetAmount] = useState(50);
   const [targetMultiplier, setTargetMultiplier] = useState(2.0);
@@ -38,20 +40,28 @@ export const InfinityXGame: React.FC<InfinityXGameProps> = ({
   const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
   const [rollHistory, setRollHistory] = useState<number[]>([1.45, 8.24, 1.02, 3.5, 12.8, 1.95, 2.1]);
 
-  // Mathematical Calculations (98.8% RTP)
-  const winProbability = Number((98.8 / targetMultiplier).toFixed(2));
+  const balanceRef = React.useRef(playerBalance);
+  React.useEffect(() => {
+    balanceRef.current = playerBalance;
+  }, [playerBalance]);
+
+  // Mathematical Calculations scaled to liveRtp
+  const activeRtp = liveRtp || 96.0;
+  const winProbability = Number((activeRtp / targetMultiplier).toFixed(2));
   const potentialProfit = Number((betAmount * targetMultiplier - betAmount).toFixed(2));
   const totalPayout = Number((betAmount * targetMultiplier).toFixed(2));
 
   // Play Limbo Roll
   const playRoll = () => {
     if (isRolling) return;
-    if (playerBalance < betAmount) {
+    if (balanceRef.current < betAmount) {
       alert("Insufficient Balance");
       return;
     }
 
-    onUpdateBalance(playerBalance - betAmount);
+    balanceRef.current = Number((balanceRef.current - betAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setIsRolling(true);
     setResultMultiplier(null);
     setIsWin(null);
@@ -59,9 +69,10 @@ export const InfinityXGame: React.FC<InfinityXGameProps> = ({
     sound.playCardDeal();
 
     setTimeout(() => {
-      // Provably Fair Pareto Distribution (98.8% RTP)
+      // Provably Fair Pareto Distribution calibrated to liveRtp
       const r = Math.random();
-      const rawOutcome = Math.max(1.0, Number((0.988 / (1 - r)).toFixed(2)));
+      const rtpFraction = activeRtp / 100;
+      const rawOutcome = Math.max(1.0, Number((rtpFraction / (1 - r)).toFixed(2)));
       const finalOutcome = Math.min(rawOutcome, 10000.0);
 
       setResultMultiplier(finalOutcome);
@@ -72,7 +83,9 @@ export const InfinityXGame: React.FC<InfinityXGameProps> = ({
       setRollHistory((prev) => [finalOutcome, ...prev.slice(0, 9)]);
 
       if (won) {
-        onUpdateBalance(playerBalance + totalPayout);
+        balanceRef.current = Number((balanceRef.current + totalPayout).toFixed(2));
+        onUpdateBalance(balanceRef.current);
+
         setLastWin({ amount: totalPayout, multiplier: targetMultiplier });
         sound.playWin();
         confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });

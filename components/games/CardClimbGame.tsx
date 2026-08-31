@@ -22,6 +22,7 @@ interface CardClimbGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 const SUITS: Array<"♠" | "♥" | "♦" | "♣"> = ["♠", "♥", "♦", "♣"];
@@ -41,6 +42,7 @@ export const CardClimbGame: React.FC<CardClimbGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  liveRtp = 96.0,
 }) => {
   const [betAmount, setBetAmount] = useState(50);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -58,23 +60,31 @@ export const CardClimbGame: React.FC<CardClimbGameProps> = ({
   const [isWin, setIsWin] = useState<boolean | null>(null);
   const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
 
-  // Dynamic Multiplier Odds based on current card rank
+  const balanceRef = React.useRef(playerBalance);
+  React.useEffect(() => {
+    balanceRef.current = playerBalance;
+  }, [playerBalance]);
+
+  // Dynamic Multiplier Odds based on current card rank & liveRtp
+  const activeRtpFraction = (liveRtp || 96.0) / 100;
   const higherChance = (14 - currentCard.value) / 13;
   const lowerChance = (currentCard.value - 2) / 13;
 
-  const higherMult = Number((0.985 / Math.max(0.08, higherChance)).toFixed(2));
-  const lowerMult = Number((0.985 / Math.max(0.08, lowerChance)).toFixed(2));
+  const higherMult = Number((activeRtpFraction / Math.max(0.08, higherChance)).toFixed(2));
+  const lowerMult = Number((activeRtpFraction / Math.max(0.08, lowerChance)).toFixed(2));
 
   const currentCashout = Number((betAmount * accumulatedMultiplier).toFixed(2));
 
   // Start Deal
   const startCardClimb = () => {
-    if (playerBalance < betAmount) {
+    if (balanceRef.current < betAmount) {
       alert("Insufficient Balance");
       return;
     }
 
-    onUpdateBalance(playerBalance - betAmount);
+    balanceRef.current = Number((balanceRef.current - betAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     const firstCard = getRandomCard();
     setCurrentCard(firstCard);
     setCardHistory([firstCard]);
@@ -143,7 +153,9 @@ export const CardClimbGame: React.FC<CardClimbGameProps> = ({
     const finalMult = customMult || accumulatedMultiplier;
     const winAmount = Number((betAmount * finalMult).toFixed(2));
 
-    onUpdateBalance(playerBalance + winAmount);
+    balanceRef.current = Number((balanceRef.current + winAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setLastWin({ amount: winAmount, multiplier: finalMult });
     setIsPlaying(false);
     setIsWin(true);

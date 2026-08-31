@@ -24,6 +24,7 @@ interface TigerTrailGameProps {
   playerBalance: number;
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
+  liveRtp?: number;
 }
 
 type Difficulty = "EASY" | "MEDIUM" | "HARD" | "EXTREME";
@@ -33,32 +34,28 @@ const DIFFICULTY_CONFIG = {
     label: "Easy",
     icon: "🌿",
     winChance: "88%",
-    steps: [1.15, 1.35, 1.6, 1.95, 2.45, 3.2, 4.3, 6.0, 9.0, 15.0],
-    winRate: 0.88,
+    steps: [1.12, 1.30, 1.55, 1.90, 2.40, 3.1, 4.2, 5.8, 8.5, 14.0],
     activeColor: "from-emerald-500 to-emerald-600 text-black border-emerald-400 shadow-emerald-500/25",
   },
   MEDIUM: {
     label: "Medium",
     icon: "🔥",
     winChance: "78%",
-    steps: [1.25, 1.6, 2.1, 2.85, 4.0, 6.0, 9.5, 16.0, 30.0, 65.0],
-    winRate: 0.78,
+    steps: [1.22, 1.55, 2.05, 2.75, 3.85, 5.8, 9.0, 15.0, 28.0, 60.0],
     activeColor: "from-amber-400 to-amber-600 text-black border-amber-300 shadow-amber-500/30",
   },
   HARD: {
     label: "Hard",
     icon: "⚡",
     winChance: "65%",
-    steps: [1.45, 2.2, 3.5, 5.8, 10.5, 20.0, 42.0, 95.0, 220.0, 500.0],
-    winRate: 0.65,
+    steps: [1.40, 2.10, 3.35, 5.5, 9.8, 18.5, 38.0, 88.0, 200.0, 450.0],
     activeColor: "from-rose-500 to-rose-600 text-white border-rose-400 shadow-rose-500/25",
   },
   EXTREME: {
     label: "Extreme",
     icon: "💀",
     winChance: "52%",
-    steps: [1.8, 3.5, 7.5, 18.0, 45.0, 120.0, 320.0, 850.0, 1500.0, 2500.0],
-    winRate: 0.52,
+    steps: [1.75, 3.3, 7.0, 16.5, 40.0, 110.0, 290.0, 780.0, 1350.0, 2200.0],
     activeColor: "from-purple-500 to-purple-700 text-white border-purple-400 shadow-purple-500/30",
   },
 };
@@ -67,6 +64,7 @@ export const TigerTrailGame: React.FC<TigerTrailGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  liveRtp = 96.0,
 }) => {
   const [betAmount, setBetAmount] = useState(50);
   const [difficulty, setDifficulty] = useState<Difficulty>("MEDIUM");
@@ -77,6 +75,11 @@ export const TigerTrailGame: React.FC<TigerTrailGameProps> = ({
   const [isStepping, setIsStepping] = useState(false);
   const [lastWin, setLastWin] = useState<{ amount: number; multiplier: number } | null>(null);
 
+  const balanceRef = React.useRef(playerBalance);
+  React.useEffect(() => {
+    balanceRef.current = playerBalance;
+  }, [playerBalance]);
+
   const activeConfig = DIFFICULTY_CONFIG[difficulty];
   const activeSteps = activeConfig.steps;
   const currentMultiplier = currentStep === 0 ? 1.0 : activeSteps[currentStep - 1];
@@ -85,12 +88,14 @@ export const TigerTrailGame: React.FC<TigerTrailGameProps> = ({
 
   // 1. Start New Expedition
   const startExpedition = () => {
-    if (playerBalance < betAmount) {
+    if (balanceRef.current < betAmount) {
       alert("Insufficient Balance");
       return;
     }
 
-    onUpdateBalance(playerBalance - betAmount);
+    balanceRef.current = Number((balanceRef.current - betAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setCurrentStep(0);
     setIsPlaying(true);
     setIsGameOver(false);
@@ -99,12 +104,16 @@ export const TigerTrailGame: React.FC<TigerTrailGameProps> = ({
     sound.playCardDeal();
   };
 
-  // 2. Step Forward across river
+  // 2. Step Forward across river with dynamic House Edge
   const stepForward = () => {
     if (!isPlaying || isStepping || currentStep >= 10) return;
     setIsStepping(true);
 
-    const isSafe = Math.random() < activeConfig.winRate;
+    const prevMult = currentStep === 0 ? 1.0 : activeSteps[currentStep - 1];
+    const nextMult = activeSteps[currentStep];
+    // Dynamic Provably Fair step probability based on liveRtp
+    const stepWinRate = ((liveRtp || 96.0) / 100) * (prevMult / nextMult);
+    const isSafe = Math.random() < Math.max(0.2, Math.min(0.95, stepWinRate));
 
     setTimeout(() => {
       if (isSafe) {
@@ -136,7 +145,9 @@ export const TigerTrailGame: React.FC<TigerTrailGameProps> = ({
     const finalMult = customMult || currentMultiplier;
     const winAmount = Number((betAmount * finalMult).toFixed(2));
 
-    onUpdateBalance(playerBalance + winAmount);
+    balanceRef.current = Number((balanceRef.current + winAmount).toFixed(2));
+    onUpdateBalance(balanceRef.current);
+
     setLastWin({ amount: winAmount, multiplier: finalMult });
     setIsPlaying(false);
     setIsWinner(true);
