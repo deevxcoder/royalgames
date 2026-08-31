@@ -70,148 +70,154 @@ export const AndarBaharCanvas: React.FC<AndarBaharCanvasProps> = ({
       ctx.strokeRect(10, 10, width - 20, height - 20);
 
       // 2. Top Golden Dealer Shoe & Center Joker Pedestal
-      const cardW = Math.max(38, Math.min(54, width * 0.12));
-      const cardH = cardW * 1.4;
+      const cardW = Math.max(32, Math.min(46, width * 0.11));
+      const cardH = cardW * 1.35;
 
       // Draw Center Joker Card Pedestal
       const jokerX = width / 2;
-      const jokerY = Math.max(45, height * 0.2);
+      const jokerY = Math.max(26, height * 0.09);
 
       // Joker Halo Glow
       ctx.save();
       ctx.shadowColor = "#f59e0b";
-      ctx.shadowBlur = 16 + Math.sin(time * 3) * 6;
+      ctx.shadowBlur = 14 + Math.sin(time * 3) * 5;
       ctx.fillStyle = "rgba(245, 158, 11, 0.15)";
       ctx.beginPath();
-      ctx.arc(jokerX, jokerY + cardH / 2, cardW * 0.9, 0, Math.PI * 2);
+      ctx.arc(jokerX, jokerY + cardH / 2, cardW * 0.85, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
       // Draw Joker Label
       ctx.fillStyle = "#fbbf24";
-      ctx.font = "bold 11px system-ui, sans-serif";
+      ctx.font = "bold 10px system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("⭐ JOKER CARD", jokerX, jokerY - 10);
+      ctx.fillText("⭐ JOKER CARD", jokerX, jokerY - 8);
 
       // Draw Joker Card Body
       drawPlayingCard(ctx, jokerCard, jokerX - cardW / 2, jokerY, cardW, cardH, true);
 
+      // Phase Center Stage Indicator
+      const phaseY = jokerY + cardH + 18;
+      if (phase === "BETTING") {
+        ctx.save();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "black 12px monospace";
+        ctx.textAlign = "center";
+        ctx.shadowColor = "#38bdf8";
+        ctx.shadowBlur = 8;
+        ctx.fillText(`⏱️ BETTING CLOSES: ${countdownLeft.toFixed(1)}s`, width / 2, phaseY);
+        ctx.restore();
+      } else if (phase === "DEALING") {
+        ctx.save();
+        ctx.fillStyle = "#fbbf24";
+        ctx.font = "bold 12px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.shadowColor = "#f59e0b";
+        ctx.shadowBlur = 8;
+        ctx.fillText("🎴 DEALING CARDS LIVE...", width / 2, phaseY);
+        ctx.restore();
+      } else if (phase === "RESULT") {
+        ctx.save();
+        const winTitle = winningSide === "ANDAR" ? "👑 ANDAR WINS!" : "👑 BAHAR WINS!";
+        ctx.fillStyle = winningSide === "ANDAR" ? "#38bdf8" : "#fb923c";
+        ctx.font = "black 14px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.shadowColor = winningSide === "ANDAR" ? "#38bdf8" : "#fb923c";
+        ctx.shadowBlur = 14;
+        ctx.fillText(winTitle, width / 2, phaseY);
+        ctx.restore();
+      }
+
       // 3. Dual Card Runways: ANDAR (Left) vs BAHAR (Right)
-      const runwayY = Math.max(jokerY + cardH + 28, height * 0.48);
-      const runwayWidth = (width - 40) / 2;
-      const andarStartX = 15;
-      const baharStartX = width / 2 + 5;
+      const runwayY = phaseY + 12;
+      const runwayH = Math.max(120, height - runwayY - 10);
+      const runwayWidth = (width - 32) / 2;
+      const andarStartX = 10;
+      const baharStartX = width / 2 + 6;
 
       // ANDAR RUNWAY (Left Blue/Cyan)
       const isAndarWin = phase === "RESULT" && winningSide === "ANDAR";
       ctx.save();
       if (isAndarWin) {
         ctx.shadowColor = "#38bdf8";
-        ctx.shadowBlur = 24 + Math.sin(time * 6) * 10;
+        ctx.shadowBlur = 20 + Math.sin(time * 6) * 8;
       }
       ctx.fillStyle = isAndarWin ? "rgba(56, 189, 248, 0.25)" : "rgba(3, 105, 161, 0.15)";
       ctx.strokeStyle = isAndarWin ? "#38bdf8" : "rgba(56, 189, 248, 0.4)";
       ctx.lineWidth = isAndarWin ? 2.5 : 1.2;
       ctx.beginPath();
-      ctx.roundRect(andarStartX, runwayY, runwayWidth, height - runwayY - 14, 16);
+      ctx.roundRect(andarStartX, runwayY, runwayWidth, runwayH, 14);
       ctx.fill();
       ctx.stroke();
       ctx.restore();
 
       // ANDAR Header Label
       ctx.fillStyle = isAndarWin ? "#7dd3fc" : "#38bdf8";
-      ctx.font = "900 13px system-ui, sans-serif";
+      ctx.font = "900 12px system-ui, sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("🔵 ANDAR", andarStartX + 14, runwayY + 22);
+      ctx.fillText("🔵 ANDAR", andarStartX + 10, runwayY + 18);
 
       ctx.fillStyle = "rgba(56, 189, 248, 0.7)";
-      ctx.font = "bold 10px monospace";
+      ctx.font = "bold 9px monospace";
       ctx.textAlign = "right";
-      ctx.fillText(`(${andarCards.length} Cards)`, andarStartX + runwayWidth - 14, runwayY + 22);
+      ctx.fillText(`(${andarCards.length} Cards)`, andarStartX + runwayWidth - 10, runwayY + 18);
 
       // BAHAR RUNWAY (Right Orange/Gold)
       const isBaharWin = phase === "RESULT" && winningSide === "BAHAR";
       ctx.save();
       if (isBaharWin) {
         ctx.shadowColor = "#fb923c";
-        ctx.shadowBlur = 24 + Math.sin(time * 6) * 10;
+        ctx.shadowBlur = 20 + Math.sin(time * 6) * 8;
       }
       ctx.fillStyle = isBaharWin ? "rgba(251, 146, 60, 0.25)" : "rgba(194, 65, 12, 0.15)";
       ctx.strokeStyle = isBaharWin ? "#fb923c" : "rgba(251, 146, 60, 0.4)";
       ctx.lineWidth = isBaharWin ? 2.5 : 1.2;
       ctx.beginPath();
-      ctx.roundRect(baharStartX, runwayY, runwayWidth, height - runwayY - 14, 16);
+      ctx.roundRect(baharStartX, runwayY, runwayWidth, runwayH, 14);
       ctx.fill();
       ctx.stroke();
       ctx.restore();
 
       // BAHAR Header Label
       ctx.fillStyle = isBaharWin ? "#fed7aa" : "#fb923c";
-      ctx.font = "900 13px system-ui, sans-serif";
+      ctx.font = "900 12px system-ui, sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("🟠 BAHAR", baharStartX + 14, runwayY + 22);
+      ctx.fillText("🟠 BAHAR", baharStartX + 10, runwayY + 18);
 
       ctx.fillStyle = "rgba(251, 146, 60, 0.7)";
-      ctx.font = "bold 10px monospace";
+      ctx.font = "bold 9px monospace";
       ctx.textAlign = "right";
-      ctx.fillText(`(${baharCards.length} Cards)`, baharStartX + runwayWidth - 14, runwayY + 22);
+      ctx.fillText(`(${baharCards.length} Cards)`, baharStartX + runwayWidth - 10, runwayY + 18);
 
-      // 4. Render Dealt Cards inside Runways with Stagger / Stacking
-      const cardSlotW = Math.max(30, Math.min(42, runwayWidth * 0.18));
-      const cardSlotH = cardSlotW * 1.38;
-      const cardStartY = runwayY + 36;
-      const maxCols = Math.floor((runwayWidth - 20) / (cardSlotW + 4));
+      // 4. Dynamically Calculate Card Dimensions to Guarantee Zero Box Overflow
+      const availableInnerH = runwayH - 28; // height left for cards below runway header
+      const maxRows = 2;
+      const targetCardH = Math.min(38, Math.max(24, Math.floor((availableInnerH - 6) / maxRows)));
+      const targetCardW = Math.floor(targetCardH / 1.35);
+      const cardStartY = runwayY + 24;
+      const gapX = 3.5;
+      const gapY = 3.5;
+      const maxCols = Math.max(4, Math.floor((runwayWidth - 16) / (targetCardW + gapX)));
 
       // Draw Andar Dealt Cards
       andarCards.forEach((c, idx) => {
         const row = Math.floor(idx / maxCols);
         const col = idx % maxCols;
-        const cx = andarStartX + 12 + col * (cardSlotW + 4);
-        const cy = cardStartY + row * (cardSlotH + 6);
+        const cx = andarStartX + 8 + col * (targetCardW + gapX);
+        const cy = cardStartY + row * (targetCardH + gapY);
         const isMatch = phase === "RESULT" && isAndarWin && idx === andarCards.length - 1;
-        drawPlayingCard(ctx, c, cx, cy, cardSlotW, cardSlotH, isMatch);
+        drawPlayingCard(ctx, c, cx, cy, targetCardW, targetCardH, isMatch);
       });
 
       // Draw Bahar Dealt Cards
       baharCards.forEach((c, idx) => {
         const row = Math.floor(idx / maxCols);
         const col = idx % maxCols;
-        const cx = baharStartX + 12 + col * (cardSlotW + 4);
-        const cy = cardStartY + row * (cardSlotH + 6);
+        const cx = baharStartX + 8 + col * (targetCardW + gapX);
+        const cy = cardStartY + row * (targetCardH + gapY);
         const isMatch = phase === "RESULT" && isBaharWin && idx === baharCards.length - 1;
-        drawPlayingCard(ctx, c, cx, cy, cardSlotW, cardSlotH, isMatch);
+        drawPlayingCard(ctx, c, cx, cy, targetCardW, targetCardH, isMatch);
       });
-
-      // 5. Phase Center Stage Indicator
-      if (phase === "BETTING") {
-        ctx.save();
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "black 14px monospace";
-        ctx.textAlign = "center";
-        ctx.shadowColor = "#38bdf8";
-        ctx.shadowBlur = 10;
-        ctx.fillText(`⏱️ BETTING CLOSING IN: ${countdownLeft.toFixed(1)}s`, width / 2, runwayY - 12);
-        ctx.restore();
-      } else if (phase === "DEALING") {
-        ctx.save();
-        ctx.fillStyle = "#fbbf24";
-        ctx.font = "bold 13px system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.shadowColor = "#f59e0b";
-        ctx.shadowBlur = 10;
-        ctx.fillText("🎴 DEALING CARDS LIVE...", width / 2, runwayY - 12);
-        ctx.restore();
-      } else if (phase === "RESULT") {
-        ctx.save();
-        const winTitle = winningSide === "ANDAR" ? "👑 ANDAR WINS!" : "👑 BAHAR WINS!";
-        ctx.fillStyle = winningSide === "ANDAR" ? "#38bdf8" : "#fb923c";
-        ctx.font = "black 16px system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.shadowColor = winningSide === "ANDAR" ? "#38bdf8" : "#fb923c";
-        ctx.shadowBlur = 18;
-        ctx.fillText(winTitle, width / 2, runwayY - 12);
-        ctx.restore();
-      }
 
       ctx.restore();
       animationFrameId = requestAnimationFrame(render);

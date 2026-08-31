@@ -208,7 +208,7 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
       </div>
 
       {/* 60FPS VIP Macau Felt Stage */}
-      <div className="w-full h-[300px] sm:h-[370px] md:h-[450px]">
+      <div className="w-full h-[340px] sm:h-[380px] md:h-[450px]">
         <AndarBaharCanvas
           phase={gameState.phase}
           countdownLeft={gameState.countdownLeft}
