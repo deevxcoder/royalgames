@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002";
+    const origin = req.nextUrl?.origin || (req.headers.get("host") ? `http://${req.headers.get("host")}` : null);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin || "http://localhost:3000";
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category")?.toLowerCase();
     const query = searchParams.get("q")?.toLowerCase() || searchParams.get("query")?.toLowerCase();
@@ -62,17 +63,37 @@ export async function GET(req: NextRequest) {
       is_active: true,
     }));
 
-    return NextResponse.json({
-      status: 1,
-      code: 0,
-      msg: "Royal Games Studio Catalog",
-      count: formattedGames.length,
-      data: {
-        games: formattedGames,
-        total: formattedGames.length,
+    return NextResponse.json(
+      {
+        status: 1,
+        code: 0,
+        msg: "Royal Games Studio Catalog",
+        count: formattedGames.length,
+        data: {
+          games: formattedGames,
+          total: formattedGames.length,
+        },
       },
-    });
+      {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
+      }
+    );
   } catch (err: any) {
     return NextResponse.json({ status: 0, error: err.message || "Internal server error" }, { status: 500 });
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
 }

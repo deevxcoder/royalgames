@@ -4,15 +4,25 @@ import { STUDIO_GAMES } from "../lib/gamesCatalog";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Synchronizing Studio 10-Game Suite to Database...");
+  console.log("Synchronizing Studio 4-Game Suite to Database...");
 
-  // Ensure Royal Games Studio provider exists
+  const allowedUids = STUDIO_GAMES.map((g) => g.game_uid);
+
+  // 1. Delete all other games from database so catalog strictly contains the 4 games
+  const deletedOldGames = await prisma.externalGame.deleteMany({
+    where: {
+      gameUid: { notIn: allowedUids },
+    },
+  });
+  console.log(`🧹 Removed ${deletedOldGames.count} non-focus games from Studio Database.`);
+
+  // 2. Ensure Royal Games Studio provider exists on port 3000
   const provider = await prisma.externalProvider.upsert({
     where: { brandId: 1 },
     update: {
       name: "Royal Games Studio",
       type: "ROYAL_NATIVE",
-      apiUrl: "http://localhost:3002/api/v1",
+      apiUrl: "http://localhost:3000/api/v1",
       apiToken: "rgs_live_royalggr_master_2026",
       apiSecret: "rgs_sec_royalggr_master_secret_2026",
       isActive: true,
@@ -22,7 +32,7 @@ async function main() {
       brandId: 1,
       name: "Royal Games Studio",
       type: "ROYAL_NATIVE",
-      apiUrl: "http://localhost:3002/api/v1",
+      apiUrl: "http://localhost:3000/api/v1",
       apiToken: "rgs_live_royalggr_master_2026",
       apiSecret: "rgs_sec_royalggr_master_secret_2026",
       isActive: true,
@@ -41,13 +51,13 @@ async function main() {
           ? "crash"
           : game.category.toLowerCase().includes("live") || game.category.toLowerCase().includes("table")
           ? "live"
-          : "originals",
+          : "cards",
         rtp: game.rtp,
         maxMultiplier: `${game.max_multiplier}x`,
         thumbnail: game.thumbnail,
         banner: game.thumbnail,
         isActive: true,
-        isFeatured: game.isFeatured || false,
+        isFeatured: true,
       },
       create: {
         providerId: provider.id,
@@ -58,19 +68,19 @@ async function main() {
           ? "crash"
           : game.category.toLowerCase().includes("live") || game.category.toLowerCase().includes("table")
           ? "live"
-          : "originals",
+          : "cards",
         rtp: game.rtp,
         maxMultiplier: `${game.max_multiplier}x`,
         thumbnail: game.thumbnail,
         banner: game.thumbnail,
         isActive: true,
-        isFeatured: game.isFeatured || false,
+        isFeatured: true,
       },
     });
     console.log(`✅ Synced Studio Game: [${game.game_uid}] ${game.name}`);
   }
 
-  console.log("All Studio games synchronized successfully!");
+  console.log("All 4 Focus Studio games synchronized successfully!");
 }
 
 main()

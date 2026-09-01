@@ -56,7 +56,7 @@ export default function OperatorDashboardPage() {
   const recentRounds = data?.recentRounds || [];
 
   return (
-    <div className="min-h-screen bg-[#07090e] flex flex-col">
+    <div className="min-h-screen bg-[#07090e] flex flex-col" suppressHydrationWarning>
       <PortalNavbar operator={operator} />
 
       <div className="flex-1 flex">

@@ -216,12 +216,14 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
 
         // Smooth Exponential Moving Average for server clock offset to prevent visual jitter
         const roundTrip = fetchEnd - fetchStart;
-        const estimatedServerNow = data.serverTime + Math.floor(roundTrip / 2);
-        const newOffset = estimatedServerNow - fetchEnd;
-        serverOffsetRef.current =
-          serverOffsetRef.current === 0
-            ? newOffset
-            : Math.round(serverOffsetRef.current * 0.8 + newOffset * 0.2);
+        if (roundTrip < 1000) {
+          const estimatedServerNow = data.serverTime + Math.floor(roundTrip / 2);
+          const newOffset = estimatedServerNow - fetchEnd;
+          serverOffsetRef.current =
+            serverOffsetRef.current === 0
+              ? newOffset
+              : Math.round(serverOffsetRef.current * 0.85 + newOffset * 0.15);
+        }
 
         serverStateRef.current = data;
         setIsReady(true);
@@ -241,7 +243,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
     };
 
     pollServerState();
-    const interval = setInterval(pollServerState, 150);
+    const interval = setInterval(pollServerState, 350);
     return () => {
       isMounted = false;
       clearInterval(interval);

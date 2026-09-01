@@ -19,18 +19,18 @@ export interface ArenaWaitingRoom {
 // Global in-memory multi-client room registry
 const arenaRooms: Map<string, ArenaWaitingRoom> = new Map();
 
-// Periodic cleanup of stale rooms older than 5 minutes
-setInterval(() => {
+function cleanupStaleRooms() {
   const now = Date.now();
   for (const [id, room] of arenaRooms.entries()) {
-    if (now - room.createdAt > 300000) {
+    if (now - room.createdAt > 180000) {
       arenaRooms.delete(id);
     }
   }
-}, 60000);
+}
 
 export async function POST(req: NextRequest) {
   try {
+    cleanupStaleRooms();
     const body = await req.json();
     const { action, roomId, playerId, playerName, stake, corner } = body;
 

@@ -114,7 +114,7 @@ export const CockFightGame: React.FC<CockFightGameProps> = ({
 
   useEffect(() => {
     fetchOpenTables();
-    const interval = setInterval(fetchOpenTables, 3000);
+    const interval = setInterval(fetchOpenTables, 5000);
     return () => clearInterval(interval);
   }, [fetchOpenTables]);
 

@@ -151,7 +151,7 @@ export default function PlaySessionPage() {
   const currentGameMeta = STUDIO_GAMES.find((g) => g.game_uid === activeGame) || STUDIO_GAMES[0];
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black" suppressHydrationWarning>
       {/* Top Header Bar */}
       <header className="h-14 bg-[#0a0d16] border-b border-slate-800/90 px-3 sm:px-4 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2.5">

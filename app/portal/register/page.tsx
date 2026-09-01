@@ -1,135 +1,49 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, Building2, ArrowRight, AlertCircle, Sparkles } from "lucide-react";
+import { ShieldCheck, ArrowLeft, Lock } from "lucide-react";
 
 export default function OperatorRegisterPage() {
   const router = useRouter();
-  const [companyName, setCompanyName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/operator/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName, email, password }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Registration failed");
-      }
-
-      router.push("/portal/dashboard");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-white flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#07090e] text-white flex items-center justify-center p-4 relative overflow-hidden" suppressHydrationWarning>
       <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md bg-[#0e121c] border border-amber-500/30 rounded-3xl p-8 shadow-2xl relative z-10 space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 mx-auto flex items-center justify-center text-slate-950 font-black text-2xl shadow-lg shadow-amber-500/20">
-            👑
-          </div>
+      <div className="w-full max-w-md bg-[#0e121c] border border-amber-500/30 rounded-3xl p-8 shadow-2xl relative z-10 space-y-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 mx-auto flex items-center justify-center text-slate-950 font-black text-2xl shadow-lg shadow-amber-500/20">
+          👑
+        </div>
+
+        <div className="space-y-2">
           <h1 className="text-xl font-black tracking-tight text-white">
-            Register Casino / Aggregator
+            Client Onboarding Managed by Studio Admin
           </h1>
-          <p className="text-xs text-slate-400">
-            Get Instant API Keys & ₹10,000 Starting Demo GGR Balance
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Public self-registration is closed. Casino operators & aggregators are onboarded directly by the Studio Super Admin with dedicated API keys and prepaid GGR allocations.
           </p>
         </div>
 
-        {error && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+        <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-left space-y-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
+            <Lock className="w-4 h-4" />
+            <span>Private B2B Gateway</span>
           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          <div>
-            <label className="block text-slate-400 mb-1 font-semibold uppercase tracking-wider">
-              Casino / Company Name
-            </label>
-            <div className="relative">
-              <Building2 className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                required
-                placeholder="Royal Bet Casino / Nexx Aggregator"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-500 font-medium"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-slate-400 mb-1 font-semibold uppercase tracking-wider">
-              Work Email Address
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-              <input
-                type="email"
-                required
-                placeholder="tech@yourcasino.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-500 font-medium"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-slate-400 mb-1 font-semibold uppercase tracking-wider">
-              Create Password
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-500"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 mt-2"
-          >
-            <span>{loading ? "Creating Account..." : "Register & Generate API Keys"}</span>
-            <ArrowRight className="w-4 h-4 stroke-[3]" />
-          </button>
-        </form>
-
-        <div className="pt-4 border-t border-slate-800 text-center text-xs text-slate-400">
-          Already have an account?{" "}
-          <Link href="/portal/login" className="text-amber-400 hover:underline font-bold">
-            Sign In
-          </Link>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            If you have received your operator credentials from the Super Admin, please sign in through the client portal.
+          </p>
         </div>
+
+        <Link
+          href="/portal/login"
+          className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 stroke-[3]" />
+          <span>Return to Client Portal Login</span>
+        </Link>
       </div>
     </div>
   );

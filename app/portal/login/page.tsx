@@ -38,7 +38,7 @@ export default function OperatorLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-white flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#07090e] text-white flex items-center justify-center p-4 relative overflow-hidden" suppressHydrationWarning>
       <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -100,26 +100,20 @@ export default function OperatorLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 mt-2"
+            className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 mt-2 cursor-pointer"
           >
             <span>{loading ? "Authenticating..." : "Sign In to Client Portal"}</span>
             <ArrowRight className="w-4 h-4 stroke-[3]" />
           </button>
         </form>
 
-        <div className="pt-4 border-t border-slate-800 text-center space-y-2 text-xs text-slate-400">
-          <div>
-            Don't have a Studio Operator account?{" "}
-            <Link href="/portal/register" className="text-amber-400 hover:underline font-bold">
-              Register Casino
-            </Link>
-          </div>
-          <div>
-            Studio Super Admin?{" "}
-            <Link href="/admin" className="text-slate-300 hover:text-white font-medium underline">
-              Admin Login →
-            </Link>
-          </div>
+        <div className="pt-4 border-t border-slate-800/80 text-center text-xs text-slate-400">
+          <p>
+            Need an Operator account?{" "}
+            <span className="text-amber-400 font-bold">
+              Contact Admin
+            </span>
+          </p>
         </div>
       </div>
     </div>

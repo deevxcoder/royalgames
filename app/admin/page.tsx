@@ -651,7 +651,7 @@ export default function StudioAdminPortal() {
 
   if (authChecking) {
     return (
-      <div className="min-h-screen bg-[#07090e] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#07090e] text-white flex items-center justify-center" suppressHydrationWarning>
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-400 rounded-full animate-spin" />
           <span className="text-xs text-amber-400 font-mono tracking-widest uppercase">Authenticating Studio Admin...</span>
@@ -663,7 +663,7 @@ export default function StudioAdminPortal() {
   // Login View
   if (!adminUser) {
     return (
-      <div className="min-h-screen bg-[#07090e] text-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#07090e] text-white flex items-center justify-center p-4" suppressHydrationWarning>
         <div className="w-full max-w-md bg-[#0e121c] border border-amber-500/30 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="flex items-center gap-3 mb-6">
@@ -781,7 +781,7 @@ export default function StudioAdminPortal() {
       : "B2B API Integration Documentation";
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex font-sans selection:bg-amber-500 selection:text-black">
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex font-sans selection:bg-amber-500 selection:text-black" suppressHydrationWarning>
       {/* Mobile Drawer Backdrop */}
       {mobileSidebarOpen && (
         <div

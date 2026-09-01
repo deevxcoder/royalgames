@@ -43,7 +43,7 @@ export default function LandingPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-gray-100 flex flex-col justify-between selection:bg-amber-500 selection:text-black">
+    <div className="min-h-screen bg-[#06080e] text-gray-100 flex flex-col justify-between selection:bg-amber-500 selection:text-black" suppressHydrationWarning>
       {/* Top Studio Navbar */}
       <header className="sticky top-0 z-40 w-full bg-[#0a0d16]/90 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-8 py-3 flex items-center justify-between shadow-2xl">
         <div className="flex items-center gap-3">

@@ -58,11 +58,11 @@ export function calculateAscentMultiplier(elapsedSeconds: number): number {
 
 // Exact mathematical inverse: calculate flight duration in seconds for a given crash multiplier
 export function calculateFlightDurationSeconds(targetMultiplier: number): number {
-  if (targetMultiplier <= 1.0) return 1.8;
+  if (targetMultiplier <= 1.01) return 0.25;
   const lnM = Math.log(Math.max(1.0001, targetMultiplier));
   const inner = lnM / 0.065;
   const elapsed = Math.pow(inner, 0.8) / 1.5;
-  return Math.max(1.8, Number(elapsed.toFixed(3)));
+  return Math.max(0.25, Number(elapsed.toFixed(3)));
 }
 
 // Fast, deterministic 32-bit PRNG (Mulberry32)
@@ -108,13 +108,14 @@ export function generateDeterministicCrash(
 }
 
 // In-memory cache per hour to make lookups virtually 0ms
-const hourScheduleCache: Record<string, { hourIndex: number; rounds: InternalRoundSchedule[] }> = {};
+const hourScheduleCache: Map<string, InternalRoundSchedule[]> = new Map();
 
 export function computeHourRounds(gameUid: string, hourIndex: number, rtp?: number): InternalRoundSchedule[] {
-  const cacheKey = `${gameUid}_${rtp ?? getGameRtpConfig(gameUid)}`;
-  const cached = hourScheduleCache[cacheKey];
-  if (cached && cached.hourIndex === hourIndex) {
-    return cached.rounds;
+  const effectiveRtp = rtp ?? getGameRtpConfig(gameUid);
+  const cacheKey = `${gameUid}_${effectiveRtp}_h${hourIndex}`;
+  const cached = hourScheduleCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   const hourStart = hourIndex * 3600000;
@@ -148,7 +149,14 @@ export function computeHourRounds(gameUid: string, hourIndex: number, rtp?: numb
     r++;
   }
 
-  hourScheduleCache[cacheKey] = { hourIndex, rounds };
+  hourScheduleCache.set(cacheKey, rounds);
+
+  // Keep cache bounded (retain up to 30 hour segments)
+  if (hourScheduleCache.size > 30) {
+    const oldestKey = hourScheduleCache.keys().next().value;
+    if (oldestKey) hourScheduleCache.delete(oldestKey);
+  }
+
   return rounds;
 }
 

@@ -66,9 +66,9 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
     balanceRef.current = playerBalance;
   }, [playerBalance]);
 
-  // Scaled multipliers based on liveRtp
-  const andarMultiplier = Number((((liveRtp || 96.0) / 100) * 2.0).toFixed(2)); // e.g. 1.92x
-  const baharMultiplier = Number((((liveRtp || 96.0) / 100) * 2.03).toFixed(2)); // e.g. 1.95x
+  // Scaled multipliers calibrated to standard iGaming Table House Edge (95.0% RTP / ~5-7% House Edge)
+  const andarMultiplier = 1.80;
+  const baharMultiplier = 1.90;
 
   // 1. Authoritative 50ms Clock Tick Loop
   useEffect(() => {
