@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PortalNavbar } from "../components/PortalNavbar";
 import { PortalSidebar } from "../components/PortalSidebar";
@@ -10,6 +10,10 @@ import {
   Search,
   Activity,
   User,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 export default function OperatorSessionsPage() {
@@ -20,15 +24,33 @@ export default function OperatorSessionsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    totalRounds: 0,
+    totalPages: 1,
+    hasPrev: false,
+    hasNext: false,
+  });
+
   const getPlayerName = (round: any) => {
     return round.user?.username || round.userId || round.session?.userId || round.memberAccount || "player_guest";
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "50",
+        search: searchQuery,
+      });
+
       const [meRes, sessRes] = await Promise.all([
         fetch("/api/operator/me"),
-        fetch("/api/operator/sessions?limit=50"),
+        fetch(`/api/operator/sessions?${params.toString()}`),
       ]);
 
       if (meRes.status === 401) {
@@ -42,42 +64,28 @@ export default function OperatorSessionsPage() {
       setOperator(meJson.operator);
       setSessions(sessJson.sessions || []);
       setRounds(sessJson.rounds || []);
+      if (sessJson.pagination) {
+        setPagination(sessJson.pagination);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, searchQuery, router]);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
 
-  const filteredRounds = rounds.filter((r) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    const pName = getPlayerName(r).toLowerCase();
-    return (
-      r.gameUid?.toLowerCase().includes(q) ||
-      r.gameName?.toLowerCase().includes(q) ||
-      pName.includes(q) ||
-      r.serialNumber?.toLowerCase().includes(q)
-    );
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-slate-400">
-        <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setPage(1);
+  };
 
   return (
     <div className="min-h-screen bg-[#07090e] flex flex-col">
-      <PortalNavbar operator={operator} />
+      <PortalNavbar operator={operator} onRefresh={fetchData} isRefreshing={loading} />
 
       <div className="flex-1 flex">
         <PortalSidebar operator={operator} />
@@ -97,9 +105,9 @@ export default function OperatorSessionsPage() {
 
             <button
               onClick={fetchData}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center gap-2 transition-all self-start sm:self-auto"
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center gap-2 transition-all self-start sm:self-auto cursor-pointer"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
               Refresh Data
             </button>
           </div>
@@ -118,7 +126,7 @@ export default function OperatorSessionsPage() {
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Total Settled Rounds
               </span>
-              <div className="text-2xl font-bold text-sky-400 font-mono">{rounds.length}</div>
+              <div className="text-2xl font-bold text-sky-400 font-mono">{pagination.totalRounds}</div>
               <div className="text-[11px] text-slate-500">Provably Fair rounds logged</div>
             </div>
 
@@ -140,19 +148,29 @@ export default function OperatorSessionsPage() {
               type="text"
               placeholder="Search rounds by game, player ID, or serial number..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2.5 bg-[#0b0f19] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
             />
           </div>
 
           {/* Settled Rounds Table */}
           <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-6 space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Activity className="w-4 h-4 text-emerald-400" />
-              Settled Game Rounds Ledger
-            </h3>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Activity className="w-4 h-4 text-emerald-400" />
+                Settled Game Rounds Ledger
+              </h3>
+              <span className="text-xs text-slate-500 font-mono">
+                Page {pagination.page} of {pagination.totalPages} ({pagination.totalRounds} Total)
+              </span>
+            </div>
 
-            {filteredRounds.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-12 text-slate-500 text-xs">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-amber-500 mb-2" />
+                Loading settled rounds...
+              </div>
+            ) : rounds.length === 0 ? (
               <div className="text-center py-10 text-slate-500 text-xs">
                 No game rounds found. Launch games via your API to see player rounds.
               </div>
@@ -171,7 +189,7 @@ export default function OperatorSessionsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {filteredRounds.map((round: any) => (
+                    {rounds.map((round: any) => (
                       <tr key={round.id} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-2.5 font-mono text-slate-400 select-all">
                           {round.serialNumber}
@@ -188,9 +206,9 @@ export default function OperatorSessionsPage() {
                             {getPlayerName(round)}
                           </span>
                         </td>
-                        <td className="py-2.5 font-mono text-slate-300">₹{round.betAmount}</td>
+                        <td className="py-2.5 font-mono text-slate-300">₹{Number(round.betAmount || 0).toLocaleString()}</td>
                         <td className="py-2.5 font-mono text-emerald-400 font-bold">
-                          ₹{round.winAmount}
+                          ₹{Number(round.winAmount || 0).toLocaleString()}
                         </td>
                         <td className="py-2.5 font-mono text-amber-400 font-bold">
                           -₹{Number(round.ggrFeeDeducted || 0).toFixed(2)}
@@ -202,6 +220,86 @@ export default function OperatorSessionsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination Navigation Footer */}
+            {pagination.totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800/80 text-xs">
+                <div className="text-slate-400">
+                  Showing{" "}
+                  <span className="text-white font-bold font-mono">
+                    {(pagination.page - 1) * pagination.limit + 1}
+                  </span>{" "}
+                  to{" "}
+                  <span className="text-white font-bold font-mono">
+                    {Math.min(pagination.page * pagination.limit, pagination.totalRounds)}
+                  </span>{" "}
+                  of <span className="text-white font-bold font-mono">{pagination.totalRounds}</span> records
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setPage(1)}
+                    disabled={!pagination.hasPrev}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                    title="First Page"
+                  >
+                    <ChevronsLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={!pagination.hasPrev}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 flex items-center gap-1 font-bold cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Prev</span>
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div className="flex items-center gap-1 px-1">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      let pNum = i + 1;
+                      if (pagination.totalPages > 5) {
+                        if (pagination.page > 3 && pagination.page < pagination.totalPages - 1) {
+                          pNum = pagination.page - 2 + i;
+                        } else if (pagination.page >= pagination.totalPages - 1) {
+                          pNum = pagination.totalPages - 4 + i;
+                        }
+                      }
+                      return (
+                        <button
+                          key={pNum}
+                          onClick={() => setPage(pNum)}
+                          className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            pagination.page === pNum
+                              ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
+                              : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          {pNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                    disabled={!pagination.hasNext}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 flex items-center gap-1 font-bold cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setPage(pagination.totalPages)}
+                    disabled={!pagination.hasNext}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                    title="Last Page"
+                  >
+                    <ChevronsRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
           </div>

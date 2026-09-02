@@ -11,6 +11,10 @@ import {
   Check,
   TrendingUp,
   Gamepad2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { STUDIO_GAMES } from "@/lib/gamesCatalog";
 
@@ -21,19 +25,44 @@ export default function AdminRoundsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    totalCount: 0,
+    totalPages: 1,
+    hasPrev: false,
+    hasNext: false,
+  });
+  const [stats, setStats] = useState({
+    totalBets: 0,
+    totalWins: 0,
+    totalGgr: 0,
+  });
+
   const fetchRounds = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch("/api/admin/rounds?limit=100");
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "50",
+        game: selectedGame,
+        search: searchTerm,
+      });
+      const res = await fetch(`/api/admin/rounds?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setRounds(data.rounds || []);
+        if (data.pagination) setPagination(data.pagination);
+        if (data.stats) setStats(data.stats);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, selectedGame, searchTerm]);
 
   useEffect(() => {
     fetchRounds();
@@ -45,21 +74,19 @@ export default function AdminRoundsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const filtered = rounds.filter((r) => {
-    if (selectedGame !== "all" && r.gameUid !== selectedGame) return false;
-    if (searchTerm) {
-      const s = searchTerm.toLowerCase();
-      const matchPlayer = r.userId?.toLowerCase().includes(s);
-      const matchSerial = r.roundId?.toLowerCase().includes(s);
-      const matchGame = r.gameName?.toLowerCase().includes(s);
-      return matchPlayer || matchSerial || matchGame;
-    }
-    return true;
-  });
+  const handleGameChange = (g: string) => {
+    setSelectedGame(g);
+    setPage(1);
+  };
 
-  const totalBets = filtered.reduce((acc, r) => acc + (r.betAmount || 0), 0);
-  const totalWins = filtered.reduce((acc, r) => acc + (r.winAmount || 0), 0);
-  const totalGgr = totalBets - totalWins;
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setPage(1);
+  };
+
+  const totalBets = stats.totalBets;
+  const totalWins = stats.totalWins;
+  const totalGgr = stats.totalGgr;
 
   return (
     <div className="space-y-6">
@@ -79,7 +106,7 @@ export default function AdminRoundsPage() {
           onClick={fetchRounds}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 border border-slate-700 cursor-pointer shrink-0"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           <span>Refresh Rounds</span>
         </button>
       </div>
@@ -87,96 +114,120 @@ export default function AdminRoundsPage() {
       {/* Summary KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-5 space-y-1">
-          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Filtered Stakes</span>
+          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Stakes</span>
           <div className="text-2xl font-black text-white font-mono">
-            ₹{totalBets.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            ₹{Number(totalBets || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-[10px] text-slate-500">{filtered.length} Authoritative Rounds</p>
+          <p className="text-[10px] text-slate-500">{pagination.totalCount} Total Recorded Rounds</p>
         </div>
 
         <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-5 space-y-1">
-          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Filtered Payouts</span>
+          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Payouts</span>
           <div className="text-2xl font-black text-purple-300 font-mono">
-            ₹{totalWins.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            ₹{Number(totalWins || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-[10px] text-slate-500">Credited via Webhook Callback</p>
+          <p className="text-[10px] text-slate-500">Player Cashouts Settled</p>
         </div>
 
         <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-5 space-y-1">
-          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Net GGR Hold</span>
+          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Net Studio GGR</span>
           <div className={`text-2xl font-black font-mono ${totalGgr >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-            ₹{totalGgr.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            {totalGgr >= 0
+              ? `+₹${Number(totalGgr).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+              : `-₹${Math.abs(Number(totalGgr)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
           </div>
-          <p className="text-[10px] text-slate-500">Hold Rate: {totalBets > 0 ? ((totalGgr / totalBets) * 100).toFixed(1) : 0}%</p>
+          <p className="text-[10px] text-slate-500">
+            Hold Rate: {totalBets > 0 ? ((totalGgr / totalBets) * 100).toFixed(1) : 0}%
+          </p>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0b0f19] border border-slate-800 rounded-2xl p-3.5 text-xs">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-slate-400 font-bold text-[11px] mr-1 flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-amber-400" /> Game:
-          </span>
-          <button
-            onClick={() => setSelectedGame("all")}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-              selectedGame === "all" ? "bg-amber-500 text-slate-950" : "bg-slate-900 text-slate-400 hover:text-white"
-            }`}
-          >
-            All Games
-          </button>
-          {STUDIO_GAMES.map((g) => (
+      {/* Filters Bar */}
+      <div className="bg-[#0b0f19] border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
-              key={g.game_uid}
-              onClick={() => setSelectedGame(g.game_uid)}
-              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                selectedGame === g.game_uid ? "bg-amber-500 text-slate-950" : "bg-slate-900 text-slate-400 hover:text-white"
+              onClick={() => handleGameChange("all")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                selectedGame === "all"
+                  ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+                  : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800"
               }`}
             >
-              {g.name}
+              All Titles
             </button>
-          ))}
+            {STUDIO_GAMES.map((g) => (
+              <button
+                key={g.game_uid}
+                onClick={() => handleGameChange(g.game_uid)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  selectedGame === g.game_uid
+                    ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+                    : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800"
+                }`}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="relative">
-          <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+        {/* Search */}
+        <div className="relative w-full sm:w-64">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search by Player ID, Serial..."
+            placeholder="Search Round ID, Player..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-[#07090e] border border-slate-700 rounded-xl pl-8 pr-3.5 py-1.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500 text-xs w-full sm:w-64"
+            onChange={handleSearchChange}
+            className="w-full pl-9 pr-4 py-1.5 bg-[#07090e] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
           />
         </div>
       </div>
 
       {/* Rounds Audit Table */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-6 shadow-lg space-y-4">
+      <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-black text-white">Live Rounds Ledger</h3>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+              Page {pagination.page} of {pagination.totalPages} ({pagination.totalCount} Total)
+            </span>
+          </div>
+          <span className="text-xs text-slate-500">50 Records Per Page</span>
+        </div>
+
         {loading ? (
-          <div className="text-center py-12 text-slate-500 text-xs">Loading game rounds...</div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-slate-500 text-xs">
-            No game rounds found matching current filter.
+          <div className="py-16 text-center text-slate-500">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-amber-500 mb-2" />
+            <span className="text-xs">Loading authoritative rounds ledger...</span>
+          </div>
+        ) : rounds.length === 0 ? (
+          <div className="py-16 text-center text-slate-500">
+            <Activity className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+            <span className="text-xs">No rounds match the selected filter.</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs font-mono">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="pb-3">Round ID / Serial</th>
-                  <th className="pb-3">Game Title</th>
-                  <th className="pb-3">Player ID</th>
-                  <th className="pb-3">Bet Stake</th>
-                  <th className="pb-3">Multiplier</th>
-                  <th className="pb-3">Win Payout</th>
-                  <th className="pb-3">GGR Net</th>
-                  <th className="pb-3">Webhook Delivery</th>
-                  <th className="pb-3 text-right">Timestamp</th>
+                <tr className="text-slate-500 border-b border-slate-800/60 pb-2">
+                  <th className="pb-3 font-semibold">ROUND ID</th>
+                  <th className="pb-3 font-semibold">GAME TITLE</th>
+                  <th className="pb-3 font-semibold">PLAYER</th>
+                  <th className="pb-3 font-semibold">BET STAKE</th>
+                  <th className="pb-3 font-semibold">MULTIPLIER</th>
+                  <th className="pb-3 font-semibold">PAYOUT</th>
+                  <th className="pb-3 font-semibold">STUDIO GGR</th>
+                  <th className="pb-3 font-semibold">WEBHOOK</th>
+                  <th className="pb-3 font-semibold text-right">TIMESTAMP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
-                {filtered.map((r) => {
-                  const ggr = (r.betAmount || 0) - (r.winAmount || 0);
+              <tbody className="divide-y divide-slate-800/40">
+                {rounds.map((r: any) => {
+                  const ggr = Number(r.betAmount || 0) - Number(r.winAmount || 0);
+
                   return (
                     <tr key={r.id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="py-3">
@@ -204,20 +255,20 @@ export default function AdminRoundsPage() {
                         </div>
                       </td>
                       <td className="py-3 text-slate-400 select-all font-sans">{r.userId}</td>
-                      <td className="py-3 font-bold text-white">₹{r.betAmount}</td>
+                      <td className="py-3 font-bold text-white">₹{Number(r.betAmount || 0).toLocaleString()}</td>
                       <td className="py-3 text-amber-400 font-bold">
                         {r.multiplier != null && !isNaN(Number(r.multiplier))
                           ? `${Number(r.multiplier).toFixed(2)}x`
                           : "—"}
                       </td>
                       <td className="py-3 font-bold">
-                        <span className={r.winAmount > 0 ? "text-emerald-400" : "text-slate-500"}>
-                          ₹{r.winAmount}
+                        <span className={Number(r.winAmount) > 0 ? "text-emerald-400" : "text-slate-500"}>
+                          ₹{Number(r.winAmount || 0).toLocaleString()}
                         </span>
                       </td>
                       <td className="py-3 font-bold">
                         <span className={ggr >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                          {ggr >= 0 ? `+₹${ggr}` : `-₹${Math.abs(ggr)}`}
+                          {ggr >= 0 ? `+₹${ggr.toLocaleString()}` : `-₹${Math.abs(ggr).toLocaleString()}`}
                         </span>
                       </td>
                       <td className="py-3">
@@ -234,6 +285,86 @@ export default function AdminRoundsPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Navigation Footer */}
+        {pagination.totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800/80 text-xs">
+            <div className="text-slate-400">
+              Showing{" "}
+              <span className="text-white font-bold font-mono">
+                {(pagination.page - 1) * pagination.limit + 1}
+              </span>{" "}
+              to{" "}
+              <span className="text-white font-bold font-mono">
+                {Math.min(pagination.page * pagination.limit, pagination.totalCount)}
+              </span>{" "}
+              of <span className="text-white font-bold font-mono">{pagination.totalCount}</span> records
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setPage(1)}
+                disabled={!pagination.hasPrev}
+                className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                title="First Page"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!pagination.hasPrev}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 flex items-center gap-1 font-bold cursor-pointer disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Prev</span>
+              </button>
+
+              {/* Page Number Chips */}
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                  let pNum = i + 1;
+                  if (pagination.totalPages > 5) {
+                    if (pagination.page > 3 && pagination.page < pagination.totalPages - 1) {
+                      pNum = pagination.page - 2 + i;
+                    } else if (pagination.page >= pagination.totalPages - 1) {
+                      pNum = pagination.totalPages - 4 + i;
+                    }
+                  }
+                  return (
+                    <button
+                      key={pNum}
+                      onClick={() => setPage(pNum)}
+                      className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        pagination.page === pNum
+                          ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
+                          : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                disabled={!pagination.hasNext}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 flex items-center gap-1 font-bold cursor-pointer disabled:cursor-not-allowed"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setPage(pagination.totalPages)}
+                disabled={!pagination.hasNext}
+                className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                title="Last Page"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>
