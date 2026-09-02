@@ -22,12 +22,14 @@ interface CricketBlastGameProps {
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
   liveRtp?: number;
+  limits?: { minBet: number; maxBet: number; maxWinCap: number; maxRoundLiability: number };
 }
 
 export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  limits,
 }) => {
   const [gameState, setGameState] = useState<"PREPARING" | "AIRBORNE" | "CAUGHT">("PREPARING");
   const [multiplier, setMultiplier] = useState(1.0);
@@ -223,7 +225,9 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
 
     const finalMult = customMult ? Number(customMult.toFixed(2)) : multiplier;
     const bet = betAmountRef.current;
-    const winAmount = Number((bet * finalMult).toFixed(2));
+    const maxWin = limits?.maxWinCap || 500000;
+    const rawWin = Number((bet * finalMult).toFixed(2));
+    const winAmount = Math.min(rawWin, maxWin);
 
     setHasCashedOut(true);
     setIsBetPlaced(false);
@@ -250,6 +254,16 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
     if (isBetPlaced) {
       setIsBetPlaced(false);
     } else {
+      const minB = limits?.minBet || 20;
+      const maxB = limits?.maxBet || 25000;
+      if (betAmount < minB) {
+        alert(`Minimum bet allowed by operator is ₹${minB}`);
+        return;
+      }
+      if (betAmount > maxB) {
+        alert(`Maximum bet allowed by operator is ₹${maxB}`);
+        return;
+      }
       if (playerBalance < betAmount) {
         alert("Insufficient Balance");
         return;

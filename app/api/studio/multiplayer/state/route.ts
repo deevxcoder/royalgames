@@ -10,10 +10,21 @@ export async function GET(req: NextRequest) {
 
     const state = tickAndGetState(gameUid);
 
+    // ZERO-LEAK SECURITY RULE:
+    // During COUNTDOWN phase (while bets are still being placed), NEVER expose future crash outcome!
+    // Result is strictly kept hidden until bets are locked and flight begins.
+    const isBettingPhase = state.phase === "COUNTDOWN";
+    const sanitizedState = {
+      ...state,
+      crashMultiplier: isBettingPhase ? null : state.crashMultiplier,
+      crashTime: isBettingPhase ? null : state.crashTime,
+      flightDurationMs: isBettingPhase ? null : state.flightDurationMs,
+    };
+
     return NextResponse.json(
       {
         success: true,
-        ...state,
+        ...sanitizedState,
       },
       {
         headers: {

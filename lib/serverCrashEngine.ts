@@ -1,5 +1,4 @@
-// Global Server-Side Authoritative Deterministic Crash Engine for Sky Rush & Cricket Blast
-// Pure Epoch Mathematics ensures 100% synchronization across all serverless lambda instances, edge nodes, and B2B clients.
+import { getGameOverride, consumeGameOverride } from "./gameControlManager";
 
 export type CrashPhase = "COUNTDOWN" | "FLYING" | "CRASHED";
 
@@ -184,6 +183,20 @@ export function tickAndGetState(gameUid: string = "royal_skyrush", targetTime?: 
       activeRound = curRounds[0];
       activeRoundIndex = 0;
     }
+  }
+
+  // Intercept with Studio Manual Outcome Override (God Mode)
+  const override = getGameOverride(gameUid);
+  if (override && override.mode === "FORCED" && override.forcedMultiplier) {
+    const forcedM = override.forcedMultiplier;
+    const forcedFlightDurMs = Math.round(calculateFlightDurationSeconds(forcedM) * 1000);
+    activeRound = {
+      ...activeRound,
+      crashMultiplier: forcedM,
+      flightDurationMs: forcedFlightDurMs,
+      crashTime: activeRound.flightStart + forcedFlightDurMs,
+      crashedEndTime: activeRound.flightStart + forcedFlightDurMs + CRASHED_DURATION_MS,
+    };
   }
 
   // Compile history array from recent completed rounds

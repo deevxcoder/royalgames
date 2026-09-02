@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
     let callbackUrl = session?.callbackUrl || session?.operator?.callbackUrl || null;
     let ggrFeeDeducted = 0;
 
+    let effectiveWin = win;
     if (session) {
       // Validate game is not deactivated for this operator
       const isGameDisabled = await db.operatorGameToggle.findFirst({
@@ -81,8 +82,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Enforce Operator Max Win Payout Cap
+      const opLimit = await db.operatorGameLimit.findUnique({
+        where: {
+          operatorId_gameUid: {
+            operatorId: session.operatorId,
+            gameUid,
+          },
+        },
+      });
+
+      const maxWinCap = opLimit?.maxWinCap ?? (gameUid === "royal_andarbahar" ? 50000 : 500000);
+      effectiveWin = Number(Math.min(win, maxWinCap).toFixed(2));
+
       // Calculate authoritative new balance from session
-      newBalance = Number(Math.max(0, session.balance - bet + win).toFixed(2));
+      newBalance = Number(Math.max(0, session.balance - bet + effectiveWin).toFixed(2));
 
       // Update session balance
       await db.gameSession.update({
@@ -92,7 +106,7 @@ export async function POST(req: NextRequest) {
 
       // Calculate GGR Fee (operator revenue share on GGR = Bet - Win)
       const ggrRate = session.operator?.ggrRate || 10.0;
-      const ggrAmount = bet - win;
+      const ggrAmount = bet - effectiveWin;
       if (ggrAmount > 0) {
         ggrFeeDeducted = Number(((ggrAmount * ggrRate) / 100).toFixed(2));
       }
@@ -140,12 +154,13 @@ export async function POST(req: NextRequest) {
         gameUid: gameMeta.game_uid,
         gameName: gameMeta.name,
         betAmount: bet,
-        winAmount: win,
+        winAmount: effectiveWin,
         creditAmount: newBalance,
         ggrFeeDeducted,
         rawPayload: JSON.stringify({
           betAmount: bet,
-          winAmount: win,
+          winAmount: effectiveWin,
+          requestedWin: win,
           multiplier: mult,
           extraData,
           sessionBalanceBefore: session?.balance ?? currentBalance,
@@ -167,7 +182,7 @@ export async function POST(req: NextRequest) {
           game_round: serialNumber,
           member_account: userId,
           bet_amount: bet,
-          win_amount: win,
+          win_amount: effectiveWin,
           credit_amount: newBalance,
           serial_number: serialNumber,
           game_name: gameMeta.name,
@@ -180,7 +195,7 @@ export async function POST(req: NextRequest) {
       success: true,
       serialNumber,
       betAmount: bet,
-      winAmount: win,
+      winAmount: effectiveWin,
       multiplier: mult,
       newBalance,
       roundId: roundRecord.id,

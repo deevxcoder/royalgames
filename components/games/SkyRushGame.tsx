@@ -28,6 +28,7 @@ interface SkyRushGameProps {
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
   liveRtp?: number;
+  limits?: { minBet: number; maxBet: number; maxWinCap: number; maxRoundLiability: number };
 }
 
 interface BetPanelState {
@@ -75,6 +76,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
   playerBalance,
   onUpdateBalance,
   onRecordRound,
+  limits,
 }) => {
   // Flight Game State
   const [gameState, setGameState] = useState<"COUNTDOWN" | "FLYING" | "CRASHED">("COUNTDOWN");
@@ -425,7 +427,9 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
     if (!targetPanel.isBetPlaced || targetPanel.hasCashedOut || gameStateRef.current !== "FLYING") return;
 
     const cashMult = customMult ? Number(customMult.toFixed(2)) : multiplier;
-    const winAmount = Number((targetPanel.amount * cashMult).toFixed(2));
+    const maxWin = limits?.maxWinCap || 500000;
+    const rawWin = Number((targetPanel.amount * cashMult).toFixed(2));
+    const winAmount = Math.min(rawWin, maxWin);
 
     if (panelNumber === 1) {
       setPanel1((prev) => ({ ...prev, hasCashedOut: true, cashedOutMult: cashMult, isBetPlaced: false }));
@@ -481,6 +485,16 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
       if (panelNumber === 1) setPanel1((prev) => ({ ...prev, isBetPlaced: false }));
       else setPanel2((prev) => ({ ...prev, isBetPlaced: false }));
     } else {
+      const minB = limits?.minBet || 20;
+      const maxB = limits?.maxBet || 25000;
+      if (targetPanel.amount < minB) {
+        alert(`Minimum bet allowed by operator is ₹${minB}`);
+        return;
+      }
+      if (targetPanel.amount > maxB) {
+        alert(`Maximum bet allowed by operator is ₹${maxB}`);
+        return;
+      }
       if (playerBalance < targetPanel.amount) {
         alert("Insufficient balance to place bet");
         return;

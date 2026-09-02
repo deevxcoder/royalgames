@@ -13,6 +13,7 @@ import {
   Layers,
   ShieldCheck,
   Rocket,
+  Sliders,
 } from "lucide-react";
 
 export function PortalSidebar({ operator }: { operator?: any }) {
@@ -21,6 +22,7 @@ export function PortalSidebar({ operator }: { operator?: any }) {
   const operatorNav = [
     { name: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard },
     { name: "Games Catalog", href: "/portal/games", icon: Layers },
+    { name: "Bet & Risk Limits", href: "/portal/limits", icon: Sliders },
     { name: "Game Sessions", href: "/portal/sessions", icon: Gamepad2 },
     { name: "API Credentials", href: "/portal/apikeys", icon: KeyRound },
     { name: "Prepaid Wallet", href: "/portal/wallet", icon: Wallet },

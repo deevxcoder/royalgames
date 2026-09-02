@@ -84,6 +84,24 @@ export async function GET(req: NextRequest) {
         );
       }
 
+      // Fetch operator configured limits for this game
+      const targetGameUid = session.gameUid || requestedGame || "royal_skyrush";
+      const opLimit = await db.operatorGameLimit.findUnique({
+        where: {
+          operatorId_gameUid: {
+            operatorId: session.operatorId,
+            gameUid: targetGameUid,
+          },
+        },
+      });
+
+      const limits = {
+        minBet: opLimit?.minBet ?? (targetGameUid === "royal_andarbahar" ? 50 : 20),
+        maxBet: opLimit?.maxBet ?? 25000,
+        maxWinCap: opLimit?.maxWinCap ?? (targetGameUid === "royal_andarbahar" ? 50000 : 500000),
+        maxRoundLiability: opLimit?.maxRoundLiability ?? (targetGameUid === "royal_andarbahar" ? 100000 : 500000),
+      };
+
       return NextResponse.json({
         success: true,
         isDemo: false,
@@ -91,13 +109,14 @@ export async function GET(req: NextRequest) {
         userId: session.userId,
         balance: session.balance,
         currency: session.currency || "INR",
-        gameUid: session.gameUid || requestedGame || "royal_skyrush",
+        gameUid: targetGameUid,
         clientName: session.operator?.companyName || "Royal Client",
         operatorId: session.operatorId,
         isExpired,
         liveRtp,
         globalRtp,
         rtpMap,
+        limits,
       });
     }
 

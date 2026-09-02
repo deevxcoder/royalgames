@@ -128,18 +128,23 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { id, name, status, callbackUrl, ggrRate } = body;
+    const { id, name, email, password, status, callbackUrl, ggrRate } = body;
 
     if (!id) return NextResponse.json({ error: "Client ID required" }, { status: 400 });
 
+    const updateData: any = {};
+    if (name) updateData.companyName = name.trim();
+    if (email) updateData.email = email.trim().toLowerCase();
+    if (status) updateData.status = status;
+    if (callbackUrl !== undefined) updateData.callbackUrl = callbackUrl.trim();
+    if (ggrRate !== undefined) updateData.ggrRate = Number(ggrRate);
+    if (password && password.trim()) {
+      updateData.passwordHash = hashPassword(password.trim());
+    }
+
     const updated = await db.operator.update({
       where: { id },
-      data: {
-        companyName: name || undefined,
-        status: status || undefined,
-        callbackUrl: callbackUrl || undefined,
-        ggrRate: ggrRate !== undefined ? Number(ggrRate) : undefined,
-      },
+      data: updateData,
     });
 
     return NextResponse.json({ success: true, client: updated });

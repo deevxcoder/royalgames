@@ -1,5 +1,4 @@
-// Global Server-Side Authoritative Deterministic Andar Bahar Engine
-// Epoch Mathematics ensures 100% synchronization across all serverless lambda instances, edge nodes, and B2B clients globally.
+import { getGameOverride } from "./gameControlManager";
 
 export type AndarBaharPhase = "BETTING" | "DEALING" | "RESULT";
 
@@ -23,6 +22,7 @@ export interface AndarBaharRoundState {
   totalDealtCards: number;
   serverTime: number;
   history: Array<{ roundId: string; winner: "ANDAR" | "BAHAR"; joker: string; count: number }>;
+  predictedWinner?: "ANDAR" | "BAHAR";
 }
 
 export interface InternalABRoundSchedule {
@@ -185,6 +185,66 @@ export function computeABHourRounds(hourIndex: number): InternalABRoundSchedule[
   return rounds;
 }
 
+function applyForcedABWinner(round: InternalABRoundSchedule, forcedWinner: "ANDAR" | "BAHAR"): InternalABRoundSchedule {
+  if (round.winningSide === forcedWinner) return round;
+
+  const jokerVal = round.jokerCard.value;
+  const dummySuit: "♠" | "♥" = round.jokerCard.suit === "♠" ? "♥" : "♠";
+  const nonMatchVal = jokerVal === 14 ? 2 : jokerVal + 1;
+  const nonMatchCard: Card = {
+    value: nonMatchVal,
+    suit: dummySuit,
+    display: `${nonMatchVal === 14 ? "A" : nonMatchVal}${dummySuit}`,
+    color: dummySuit === "♥" ? "red" : "black",
+  };
+  const winningMatchCard: Card = {
+    value: jokerVal,
+    suit: round.jokerCard.suit === "♦" ? "♣" : "♦",
+    display: `${round.jokerCard.display.slice(0, -1)}${round.jokerCard.suit === "♦" ? "♣" : "♦"}`,
+    color: round.jokerCard.color === "red" ? "black" : "red",
+  };
+
+  if (forcedWinner === "ANDAR") {
+    const cleanBahar = round.baharCards.map((c) => (c.value === jokerVal ? nonMatchCard : c));
+    const cleanAndar = round.andarCards.filter((c) => c.value !== jokerVal);
+    cleanAndar.push(winningMatchCard);
+
+    const totalCards = cleanAndar.length + cleanBahar.length;
+    const dealingDurMs = totalCards * AB_CARD_DEAL_INTERVAL_MS;
+    const resultStart = round.dealingStart + dealingDurMs;
+
+    return {
+      ...round,
+      andarCards: cleanAndar,
+      baharCards: cleanBahar,
+      winningSide: "ANDAR",
+      winningCard: winningMatchCard,
+      totalCards,
+      resultStart,
+      roundEndTime: resultStart + AB_RESULT_DURATION_MS,
+    };
+  } else {
+    const cleanAndar = round.andarCards.map((c) => (c.value === jokerVal ? nonMatchCard : c));
+    const cleanBahar = round.baharCards.filter((c) => c.value !== jokerVal);
+    cleanBahar.push(winningMatchCard);
+
+    const totalCards = cleanAndar.length + cleanBahar.length;
+    const dealingDurMs = totalCards * AB_CARD_DEAL_INTERVAL_MS;
+    const resultStart = round.dealingStart + dealingDurMs;
+
+    return {
+      ...round,
+      andarCards: cleanAndar,
+      baharCards: cleanBahar,
+      winningSide: "BAHAR",
+      winningCard: winningMatchCard,
+      totalCards,
+      resultStart,
+      roundEndTime: resultStart + AB_RESULT_DURATION_MS,
+    };
+  }
+}
+
 // Authoritative synchronized state tick based on real time
 export function tickAndGetABState(targetTime?: number): AndarBaharRoundState {
   const now = targetTime ?? Date.now();
@@ -208,6 +268,12 @@ export function tickAndGetABState(targetTime?: number): AndarBaharRoundState {
       activeRound = curRounds[0];
       activeRoundIndex = 0;
     }
+  }
+
+  // Intercept with Studio Manual Outcome Override (God Mode)
+  const abOverride = getGameOverride("royal_andarbahar");
+  if (abOverride && abOverride.mode === "FORCED" && (abOverride as any).forcedWinner) {
+    activeRound = applyForcedABWinner(activeRound, (abOverride as any).forcedWinner);
   }
 
   // Determine current lifecycle phase
@@ -265,6 +331,10 @@ export function tickAndGetABState(targetTime?: number): AndarBaharRoundState {
     }
   }
 
+  // ZERO-LEAK SECURITY RULE:
+  // While bets are still being placed in BETTING phase, NEVER leak the winner or card count to players!
+  const isBettingWindow = phase === "BETTING";
+
   return {
     roundId: activeRound.roundId,
     roundSequence: activeRound.roundSequence,
@@ -273,9 +343,10 @@ export function tickAndGetABState(targetTime?: number): AndarBaharRoundState {
     jokerCard: activeRound.jokerCard,
     andarCards: visibleAndarCards,
     baharCards: visibleBaharCards,
-    winningSide: activeRound.winningSide,
-    winningCard: activeRound.winningCard,
-    totalDealtCards: activeRound.totalCards,
+    winningSide: isBettingWindow ? (null as any) : activeRound.winningSide,
+    winningCard: isBettingWindow ? (null as any) : activeRound.winningCard,
+    predictedWinner: activeRound.winningSide,
+    totalDealtCards: isBettingWindow ? 0 : activeRound.totalCards,
     serverTime: now,
     history: history.reverse(),
   };

@@ -48,6 +48,7 @@ export default function PlaySessionPage() {
 
   const [deactivationError, setDeactivationError] = useState<string | null>(null);
   const [liveRtp, setLiveRtp] = useState<number>(96.0);
+  const [gameLimits, setGameLimits] = useState<any>(null);
 
   // Load Session Info from Database
   useEffect(() => {
@@ -73,6 +74,9 @@ export default function PlaySessionPage() {
           }
           if (typeof data.liveRtp === "number") {
             setLiveRtp(data.liveRtp);
+          }
+          if (data.limits) {
+            setGameLimits(data.limits);
           }
           // If URL has a game, use it; otherwise use session gameUid
           if (urlGame && STUDIO_GAMES.some((g) => g.game_uid === urlGame)) {
@@ -302,6 +306,7 @@ export default function PlaySessionPage() {
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
                 liveRtp={liveRtp}
+                limits={gameLimits}
               />
             </div>
           )}
@@ -350,6 +355,7 @@ export default function PlaySessionPage() {
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
                 liveRtp={liveRtp}
+                limits={gameLimits}
               />
             </div>
           )}
@@ -422,6 +428,7 @@ export default function PlaySessionPage() {
                 onUpdateBalance={setPlayerBalance}
                 onRecordRound={handleRecordRound}
                 liveRtp={liveRtp}
+                limits={gameLimits}
               />
             </div>
           )}

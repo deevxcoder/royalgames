@@ -52,17 +52,4 @@ export const STUDIO_GAMES: StudioGame[] = [
     description: "Global live synchronized multiplayer Andar Bahar with 7-figure VIP felt, 3D card dealing, and instant payouts.",
     isFeatured: true,
   },
-  {
-    game_id: 88804,
-    game_uid: "royal_cardclimb",
-    name: "Card Climb",
-    provider: "Royal Games Studio",
-    category: "Cards / Hi-Lo",
-    rtp: 98.3,
-    max_multiplier: 120.0,
-    logo: null,
-    thumbnail: "/games/royal_cardclimb.svg",
-    description: "Luxury card prediction table. Predict whether the next dealt card is Higher or Lower to climb the payout multiplier.",
-    isFeatured: true,
-  },
 ];

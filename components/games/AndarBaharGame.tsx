@@ -31,6 +31,7 @@ interface AndarBaharGameProps {
   onUpdateBalance: (newBalance: number) => void;
   onRecordRound?: (data: { bet: number; win: number; multiplier: number }) => void;
   liveRtp?: number;
+  limits?: { minBet: number; maxBet: number; maxWinCap: number; maxRoundLiability: number };
 }
 
 type BetChoice = "ANDAR" | "BAHAR";
@@ -46,6 +47,7 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
   onUpdateBalance,
   onRecordRound,
   liveRtp = 96.0,
+  limits,
 }) => {
   const [selectedChip, setSelectedChip] = useState<number>(50);
   const [activeBets, setActiveBets] = useState<{ ANDAR: number; BAHAR: number }>({ ANDAR: 0, BAHAR: 0 });
@@ -113,7 +115,9 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
         if (userBetOnWin > 0) {
           // User Won!
           const mult = winningSide === "ANDAR" ? andarMultiplier : baharMultiplier;
-          const totalWin = Number((userBetOnWin * mult).toFixed(2));
+          const maxWin = limits?.maxWinCap || 50000;
+          const rawWin = Number((userBetOnWin * mult).toFixed(2));
+          const totalWin = Math.min(rawWin, maxWin);
 
           balanceRef.current = Number((balanceRef.current + totalWin).toFixed(2));
           onUpdateBalance(balanceRef.current);
@@ -144,8 +148,8 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
     activeBets,
     andarMultiplier,
     baharMultiplier,
-    onUpdateBalance,
     onRecordRound,
+    onUpdateBalance,
     settledRounds,
   ]);
 
@@ -153,6 +157,19 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
   const handlePlaceBet = (side: BetChoice) => {
     if (gameState.phase !== "BETTING") {
       alert("Betting is currently closed for this round. Please wait for the next deal!");
+      return;
+    }
+
+    const currentBetOnSide = activeBets[side] + selectedChip;
+    const maxB = limits?.maxBet || 25000;
+    const minB = limits?.minBet || 50;
+
+    if (selectedChip < minB && activeBets[side] === 0) {
+      alert(`Minimum bet allowed by operator is ₹${minB}`);
+      return;
+    }
+    if (currentBetOnSide > maxB) {
+      alert(`Maximum bet allowed by operator on ${side} is ₹${maxB}`);
       return;
     }
 
