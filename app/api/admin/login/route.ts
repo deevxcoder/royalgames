@@ -7,7 +7,7 @@ export async function POST(req: Request) {
 
     // Default master studio credentials or env
     const validUser = process.env.STUDIO_ADMIN_USER || "admin";
-    const validPass = process.env.STUDIO_ADMIN_PASS || "studio1234";
+    const validPass = process.env.STUDIO_ADMIN_PASS || "Kali9090";
 
     if (username === validUser && password === validPass) {
       const token = signStudioAdminToken({ username, role: "STUDIO_SUPER_ADMIN" });

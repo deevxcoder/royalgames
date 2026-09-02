@@ -13,7 +13,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
 
   // Login Form State
   const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("studio1234");
+  const [password, setPassword] = useState("Kali9090");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -180,7 +180,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-[#080a10] border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none transition-colors"
-                placeholder="studio1234"
+                placeholder="Kali9090"
                 required
               />
             </div>
@@ -196,7 +196,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
           </form>
 
           <div className="mt-6 pt-4 border-t border-slate-800 text-center text-xs text-gray-500">
-            Default credentials: <span className="text-amber-400 font-mono">admin</span> / <span className="text-amber-400 font-mono">studio1234</span>
+            Default credentials: <span className="text-amber-400 font-mono">admin</span> / <span className="text-amber-400 font-mono">Kali9090</span>
           </div>
         </div>
       </div>
