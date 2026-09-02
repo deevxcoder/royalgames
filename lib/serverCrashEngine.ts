@@ -187,8 +187,8 @@ export function tickAndGetState(gameUid: string = "royal_skyrush", targetTime?: 
 
   // Intercept with Studio Manual Outcome Override (God Mode)
   const override = getGameOverride(gameUid);
-  if (override && override.mode === "FORCED" && override.forcedMultiplier) {
-    const forcedM = override.forcedMultiplier;
+  if (override && override.mode === "FORCED" && (override as any).forcedMultiplier) {
+    const forcedM = (override as any).forcedMultiplier as number;
     const forcedFlightDurMs = Math.round(calculateFlightDurationSeconds(forcedM) * 1000);
     activeRound = {
       ...activeRound,

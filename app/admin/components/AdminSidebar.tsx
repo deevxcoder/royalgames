@@ -180,7 +180,7 @@ export function AdminSidebar({
             <div className="space-y-1">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = item.exact
+                const isActive = (item as any).exact
                   ? pathname === item.href
                   : pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
 
