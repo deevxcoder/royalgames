@@ -5,9 +5,13 @@ export async function POST(req: Request) {
   try {
     const { username, password } = await req.json();
 
-    // Default master studio credentials or env
+    // Master studio credentials strictly from environment variables
     const validUser = process.env.STUDIO_ADMIN_USER || "admin";
-    const validPass = process.env.STUDIO_ADMIN_PASS || "Kali9090";
+    const validPass = process.env.STUDIO_ADMIN_PASS;
+
+    if (!validPass) {
+      return NextResponse.json({ error: "Studio Admin credentials not configured in environment" }, { status: 500 });
+    }
 
     if (username === validUser && password === validPass) {
       const token = signStudioAdminToken({ username, role: "STUDIO_SUPER_ADMIN" });

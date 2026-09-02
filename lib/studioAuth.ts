@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { db } from "./db";
 
 const JWT_SECRET = process.env.JWT_SECRET || "royal_studio_master_secret_2026";
-const ADMIN_PASSWORD_HASH = crypto.createHash("sha256").update(process.env.STUDIO_ADMIN_PASS || "Kali9090").digest("hex");
+const ADMIN_PASSWORD_HASH = crypto.createHash("sha256").update(process.env.STUDIO_ADMIN_PASS || "").digest("hex");
 
 export function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");

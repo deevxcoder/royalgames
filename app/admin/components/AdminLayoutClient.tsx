@@ -4,16 +4,16 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
-import { AlertCircle, Lock, RefreshCw } from "lucide-react";
+import { AlertCircle, Lock, RefreshCw, ShieldCheck } from "lucide-react";
 
 export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [authChecking, setAuthChecking] = useState(true);
   const [adminUser, setAdminUser] = useState<any>(null);
 
-  // Login Form State
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("Kali9090");
+  // Login Form State (Clean - No Hardcoded Values)
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -166,7 +166,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full bg-[#080a10] border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none transition-colors"
-                placeholder="admin"
+                placeholder="Enter admin username"
                 required
               />
             </div>
@@ -180,7 +180,7 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-[#080a10] border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none transition-colors"
-                placeholder="Kali9090"
+                placeholder="••••••••••••"
                 required
               />
             </div>
@@ -191,12 +191,13 @@ export function AdminLayoutClient({ children }: { children: React.ReactNode }) {
               className="w-full mt-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold py-3 rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
             >
               {loginLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-              <span>Sign In to Studio Portal</span>
+              <span>{loginLoading ? "Authenticating Admin..." : "Sign In to Admin Console"}</span>
             </button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-slate-800 text-center text-xs text-gray-500">
-            Default credentials: <span className="text-amber-400 font-mono">admin</span> / <span className="text-amber-400 font-mono">Kali9090</span>
+          <div className="mt-6 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500 flex items-center justify-center gap-1.5 font-sans">
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Authorized Studio Personnel Only • 256-Bit Encrypted Session</span>
           </div>
         </div>
       </div>
