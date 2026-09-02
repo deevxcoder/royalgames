@@ -206,7 +206,9 @@ export default function AdminRoundsPage() {
                       <td className="py-3 text-slate-400 select-all font-sans">{r.userId}</td>
                       <td className="py-3 font-bold text-white">₹{r.betAmount}</td>
                       <td className="py-3 text-amber-400 font-bold">
-                        {r.multiplier ? `${r.multiplier.toFixed(2)}x` : "—"}
+                        {r.multiplier != null && !isNaN(Number(r.multiplier))
+                          ? `${Number(r.multiplier).toFixed(2)}x`
+                          : "—"}
                       </td>
                       <td className="py-3 font-bold">
                         <span className={r.winAmount > 0 ? "text-emerald-400" : "text-slate-500"}>
