@@ -41,7 +41,7 @@ export default function AdminDashboardPage() {
 
         if (statsRes.ok) {
           const s = await statsRes.json();
-          setStats(s.stats);
+          setStats(s.stats || s);
         }
         if (clientsRes.ok) {
           const c = await clientsRes.json();
@@ -66,10 +66,10 @@ export default function AdminDashboardPage() {
     loadDashboardData();
   }, []);
 
-  const turnover = stats?.totalBetVolume || 0;
-  const payout = stats?.totalWinPayouts || 0;
-  const ggr = stats?.totalGgr || turnover - payout;
-  const studioShare = stats?.totalStudioFee || ggr * 0.1;
+  const turnover = stats?.totalTurnover ?? stats?.totalBetVolume ?? 0;
+  const payout = stats?.totalPayout ?? stats?.totalWinPayouts ?? 0;
+  const ggr = stats?.studioGgr ?? stats?.totalGgr ?? turnover - payout;
+  const studioShare = stats?.totalStudioFee ?? ggr * 0.1;
   const holdRate = turnover > 0 ? ((ggr / turnover) * 100).toFixed(1) : "0.0";
 
   return (
@@ -133,13 +133,18 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Top 4 Financial Metric Cards */}
+      {/* Top 4 Financial Metric Cards (Clickable to Details) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1: Total B2B Turnover */}
-        <div className="bg-[#0b0f19] border border-slate-800/90 rounded-2xl p-5 shadow-lg space-y-2">
+        <Link
+          href="/admin/reports"
+          className="bg-[#0b0f19] border border-slate-800/90 hover:border-amber-500/50 rounded-2xl p-5 shadow-lg space-y-2 transition-all group block cursor-pointer"
+        >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total B2B Turnover</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-amber-400 transition-colors">
+              Total B2B Turnover
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
               <Activity className="w-4 h-4" />
             </div>
           </div>
@@ -147,13 +152,18 @@ export default function AdminDashboardPage() {
             ₹{turnover.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <p className="text-[10px] text-slate-500">Cumulative player stakes across all client casinos</p>
-        </div>
+        </Link>
 
         {/* Metric 2: Total Player Payouts */}
-        <div className="bg-[#0b0f19] border border-slate-800/90 rounded-2xl p-5 shadow-lg space-y-2">
+        <Link
+          href="/admin/rounds"
+          className="bg-[#0b0f19] border border-slate-800/90 hover:border-purple-500/50 rounded-2xl p-5 shadow-lg space-y-2 transition-all group block cursor-pointer"
+        >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Player Win Payouts</span>
-            <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-purple-400 transition-colors">
+              Player Win Payouts
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
@@ -161,13 +171,18 @@ export default function AdminDashboardPage() {
             ₹{payout.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <p className="text-[10px] text-slate-500">Total authorized wins credited via webhook callbacks</p>
-        </div>
+        </Link>
 
         {/* Metric 3: Net GGR Hold */}
-        <div className="bg-[#0b0f19] border border-slate-800/90 rounded-2xl p-5 shadow-lg space-y-2">
+        <Link
+          href="/admin/reports"
+          className="bg-[#0b0f19] border border-slate-800/90 hover:border-emerald-500/50 rounded-2xl p-5 shadow-lg space-y-2 transition-all group block cursor-pointer"
+        >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Net GGR House Hold</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-emerald-400 transition-colors">
+              Net GGR House Hold
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
               <Wallet className="w-4 h-4" />
             </div>
           </div>
@@ -176,13 +191,18 @@ export default function AdminDashboardPage() {
             <span className="text-xs font-bold text-emerald-500 font-sans">({holdRate}%)</span>
           </div>
           <p className="text-[10px] text-slate-500">Casino gross gaming revenue (Turnover - Payout)</p>
-        </div>
+        </Link>
 
         {/* Metric 4: Studio 10% Royalties */}
-        <div className="bg-[#0b0f19] border border-slate-800/90 rounded-2xl p-5 shadow-lg space-y-2">
+        <Link
+          href="/admin/reports"
+          className="bg-[#0b0f19] border border-slate-800/90 hover:border-amber-500/50 rounded-2xl p-5 shadow-lg space-y-2 transition-all group block cursor-pointer"
+        >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Studio 10% Royalty</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-amber-400 transition-colors">
+              Studio 10% Royalty
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
               <Sparkles className="w-4 h-4" />
             </div>
           </div>
@@ -190,10 +210,10 @@ export default function AdminDashboardPage() {
             ₹{studioShare.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <p className="text-[10px] text-slate-500">Royal Games Studio fee deducted from prepaid GGR</p>
-        </div>
+        </Link>
       </div>
 
-      {/* 4 Secondary Quick Metric Counters */}
+      {/* 4 Secondary Quick Metric Counters (All Linked) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
         <Link
           href="/admin/clients"
@@ -229,15 +249,14 @@ export default function AdminDashboardPage() {
         </Link>
 
         <Link
-          href="/"
-          target="_blank"
-          className="bg-[#090d16] border border-slate-800 hover:border-sky-500/40 rounded-2xl p-4 transition-all group flex items-center justify-between"
+          href="/admin/game-control"
+          className="bg-[#090d16] border border-slate-800 hover:border-rose-500/40 rounded-2xl p-4 transition-all group flex items-center justify-between"
         >
           <div>
             <span className="text-[10px] text-slate-500 uppercase font-sans font-bold block">Flagship Suite</span>
             <span className="text-lg font-black text-white">{STUDIO_GAMES.length} HTML5 Games</span>
           </div>
-          <Gamepad2 className="w-5 h-5 text-slate-600 group-hover:text-sky-400 transition-colors" />
+          <Gamepad2 className="w-5 h-5 text-slate-600 group-hover:text-rose-400 transition-colors" />
         </Link>
       </div>
 
