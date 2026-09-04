@@ -601,11 +601,15 @@ export default function AdminGameControlPage() {
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-black text-white">Andar Bahar Royale</h2>
                 <span className="text-[9px] px-2 py-0.2 rounded font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  Live Card Table (1.90x / 2.00x)
+                  Live Card Table (1.80x / 1.90x)
+                </span>
+                <span className="text-[9px] px-2 py-0.2 rounded font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 animate-pulse">
+                  ⚡ Live Overridable Until Result
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-mono">
-                Live State: <span className="text-purple-400 font-bold">{abLive?.phase || "SYNCING"}</span> • Joker: <span className="text-amber-300 font-bold">{abLive?.jokerCard || "—"}</span> • Scheduled Winner: <span className="font-bold text-emerald-400">{abLive?.predictedWinner || abLive?.winningSide || "CALCULATING"}</span>
+              <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                Live Phase: <span className="text-purple-400 font-bold uppercase">{abLive?.phase || "SYNCING"}</span>
+                {abLive?.phase === "BETTING" && ` (${abLive?.countdownLeft || 0}s remaining)`} • Joker: <span className="text-amber-300 font-bold">{abLive?.jokerCard || "—"}</span> • Scheduled Winner: <span className="font-bold text-emerald-400">{abLive?.predictedWinner || abLive?.winningSide || "CALCULATING"}</span>
               </p>
             </div>
           </div>
@@ -633,11 +637,93 @@ export default function AdminGameControlPage() {
           </div>
         </div>
 
-        {/* Large Force Winner Decision Panels */}
+        {/* 1. Live Money Pool & Liability Comparison Card */}
+        <div className="bg-[#070a12] border border-slate-800/90 rounded-2xl p-4 sm:p-5 space-y-3.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              💰 Current Round Live Betting Pool & Net Liability
+            </span>
+            {abLive?.bestSideForCasino && (
+              <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                ⭐ House Profit Maximizer: Force {abLive.bestSideForCasino}
+              </span>
+            )}
+          </div>
+
+          {/* Visual Percentage Distribution Bar */}
+          {(() => {
+            const totalBets = (abLive?.totalAndarBets || 0) + (abLive?.totalBaharBets || 0) || 1;
+            const andarPct = Math.round(((abLive?.totalAndarBets || 0) / totalBets) * 100);
+            const baharPct = 100 - andarPct;
+            return (
+              <div className="space-y-1">
+                <div className="w-full h-3 rounded-full bg-slate-900 overflow-hidden flex border border-slate-800">
+                  <div style={{ width: `${andarPct}%` }} className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-all duration-300" />
+                  <div style={{ width: `${baharPct}%` }} className="h-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-300" />
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-mono font-bold">
+                  <span className="text-sky-400">ANDAR: {andarPct}% (₹{(abLive?.totalAndarBets || 0).toLocaleString()})</span>
+                  <span className="text-amber-400">BAHAR: {baharPct}% (₹{(abLive?.totalBaharBets || 0).toLocaleString()})</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Dual Pool Cards with Net GGR Projections */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* ANDAR POOL STATS */}
+            <div className="p-3.5 rounded-xl bg-sky-950/30 border border-sky-500/30 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-sky-400 uppercase">ANDAR (INSIDE)</span>
+                <span className="text-[10px] font-mono text-slate-400">{abLive?.totalAndarCount || 0} Total Bets</span>
+              </div>
+              <div className="text-xl font-mono font-black text-white">
+                ₹{(abLive?.totalAndarBets || 0).toLocaleString()}
+                {abLive?.realAndar > 0 && (
+                  <span className="text-[10px] text-emerald-400 font-bold ml-2">(₹{abLive.realAndar.toLocaleString()} Real User)</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-sky-900/40">
+                <span className="text-slate-400">If ANDAR Wins:</span>
+                <span className={`font-bold ${(abLive?.profitIfAndarWins || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  House Profit: {(abLive?.profitIfAndarWins || 0) >= 0 ? "+" : ""}₹{(abLive?.profitIfAndarWins || 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* BAHAR POOL STATS */}
+            <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/30 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-amber-400 uppercase">BAHAR (OUTSIDE)</span>
+                <span className="text-[10px] font-mono text-slate-400">{abLive?.totalBaharCount || 0} Total Bets</span>
+              </div>
+              <div className="text-xl font-mono font-black text-white">
+                ₹{(abLive?.totalBaharBets || 0).toLocaleString()}
+                {abLive?.realBahar > 0 && (
+                  <span className="text-[10px] text-emerald-400 font-bold ml-2">(₹{abLive.realBahar.toLocaleString()} Real User)</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-amber-900/40">
+                <span className="text-slate-400">If BAHAR Wins:</span>
+                <span className={`font-bold ${(abLive?.profitIfBaharWins || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  House Profit: {(abLive?.profitIfBaharWins || 0) >= 0 ? "+" : ""}₹{(abLive?.profitIfBaharWins || 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Large Force Winner Decision Panels (Live Override) */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-            ⚡ Force Winning Side on Next Round
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+              ⚡ Instant God Mode Outcome Decision (Active Round & Future)
+            </label>
+            <span className="text-[10px] text-purple-400 font-mono">
+              Overriding now will instantly force the outcome before the result card is revealed!
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* FORCE ANDAR */}
             <button
@@ -645,20 +731,20 @@ export default function AdminGameControlPage() {
               onClick={() => handleSetABOverride("ANDAR", Number(abRounds))}
               className={`p-5 rounded-2xl border text-left transition-all group cursor-pointer shadow-xl ${
                 abOverride?.forcedWinner === "ANDAR"
-                  ? "bg-gradient-to-r from-emerald-950/80 to-emerald-900/80 border-emerald-400 ring-2 ring-emerald-500/40"
-                  : "bg-slate-900/80 hover:bg-slate-800/80 border-slate-700 hover:border-emerald-500/40"
+                  ? "bg-gradient-to-r from-sky-950/80 to-sky-900/80 border-sky-400 ring-2 ring-sky-500/40"
+                  : "bg-slate-900/80 hover:bg-slate-800/80 border-slate-700 hover:border-sky-500/40"
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
                   Left Side (Odd Deals: 1st, 3rd, 5th...)
                 </span>
-                <span className="text-xs font-mono font-bold text-slate-400">PAYS 1.90x</span>
+                <span className="text-xs font-mono font-bold text-slate-400">PAYS 1.80x</span>
               </div>
               <div className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                 <span>⚡ FORCE ANDAR WIN</span>
                 {abOverride?.forcedWinner === "ANDAR" && (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  <CheckCircle2 className="w-5 h-5 text-sky-400" />
                 )}
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
@@ -680,7 +766,7 @@ export default function AdminGameControlPage() {
                 <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                   Right Side (Even Deals: 2nd, 4th, 6th...)
                 </span>
-                <span className="text-xs font-mono font-bold text-slate-400">PAYS 2.00x</span>
+                <span className="text-xs font-mono font-bold text-slate-400">PAYS 1.90x</span>
               </div>
               <div className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                 <span>⚡ FORCE BAHAR WIN</span>
@@ -695,7 +781,7 @@ export default function AdminGameControlPage() {
           </div>
         </div>
 
-        {/* Rounds Duration & Clear */}
+        {/* 3. Rounds Duration & Clear Control */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#07090e] p-4 rounded-2xl border border-slate-800 text-xs">
           <div className="flex items-center gap-3">
             <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">

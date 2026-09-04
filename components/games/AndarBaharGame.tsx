@@ -72,44 +72,40 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
   const andarMultiplier = 1.80;
   const baharMultiplier = 1.90;
 
-  // 1. Authoritative 50ms Clock Tick Loop
+  // 1. Authoritative Server Polling & Real-Time Sync Loop
   useEffect(() => {
-    const interval = setInterval(() => {
-      const state = tickAndGetABState();
-      setGameState(state);
+    let isMounted = true;
 
-      // Dynamically simulate small fluctuating multiplayer bets
-      if (state.phase === "BETTING" && Math.random() < 0.25) {
-        setMultiplayerStats((prev) => ({
-          andarPool: prev.andarPool + Math.floor(Math.random() * 500) + 100,
-          andarCount: prev.andarCount + (Math.random() < 0.5 ? 1 : 0),
-          baharPool: prev.baharPool + Math.floor(Math.random() * 600) + 100,
-          baharCount: prev.baharCount + (Math.random() < 0.5 ? 1 : 0),
-        }));
-      }
+    const pollServerState = async () => {
+      try {
+        const res = await fetch("/api/studio/andarbahar/state?_t=" + Date.now(), { cache: "no-store" });
+        const data = await res.json();
+        if (!isMounted || !data.success) return;
 
-      // Reset pool on new round
-      if (state.phase === "BETTING" && state.countdownLeft > 9.5) {
-        setMultiplayerStats({
-          andarPool: Math.floor(Math.random() * 15000) + 20000,
-          andarCount: Math.floor(Math.random() * 50) + 100,
-          baharPool: Math.floor(Math.random() * 18000) + 22000,
-          baharCount: Math.floor(Math.random() * 50) + 110,
-        });
-      }
-    }, 50);
+        setGameState(data);
 
-    return () => clearInterval(interval);
+        if (data.multiplayerPool) {
+          setMultiplayerStats(data.multiplayerPool);
+        }
+      } catch (err) {}
+    };
+
+    pollServerState();
+    const interval = setInterval(pollServerState, 250);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // 2. Automatic Round Settlement in RESULT phase
   useEffect(() => {
-    if (gameState.phase === "RESULT" && !settledRounds[gameState.roundId]) {
+    if (gameState.phase === "RESULT" && gameState.winningSide && !settledRounds[gameState.roundId]) {
       setSettledRounds((prev) => ({ ...prev, [gameState.roundId]: true }));
 
       const winningSide = gameState.winningSide;
-      const userBetOnWin = activeBets[winningSide];
-      const userBetTotal = activeBets.ANDAR + activeBets.BAHAR;
+      const userBetOnWin = activeBets[winningSide] || 0;
+      const userBetTotal = (activeBets.ANDAR || 0) + (activeBets.BAHAR || 0);
 
       if (userBetTotal > 0) {
         if (userBetOnWin > 0) {
@@ -151,16 +147,17 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
     onRecordRound,
     onUpdateBalance,
     settledRounds,
+    limits,
   ]);
 
   // 3. Place Bet on ANDAR or BAHAR
-  const handlePlaceBet = (side: BetChoice) => {
+  const handlePlaceBet = async (side: BetChoice) => {
     if (gameState.phase !== "BETTING") {
       alert("Betting is currently closed for this round. Please wait for the next deal!");
       return;
     }
 
-    const currentBetOnSide = activeBets[side] + selectedChip;
+    const currentBetOnSide = (activeBets[side] || 0) + selectedChip;
     const maxB = limits?.maxBet || 25000;
     const minB = limits?.minBet || 50;
 
@@ -185,14 +182,26 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
 
     setActiveBets((prev) => ({
       ...prev,
-      [side]: prev[side] + selectedChip,
+      [side]: (prev[side] || 0) + selectedChip,
     }));
+
+    // Transmit bet to backend server engine for live God Mode pool & liability tracking
+    try {
+      fetch("/api/studio/andarbahar/bet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          side,
+          amount: selectedChip,
+        }),
+      }).catch(() => {});
+    } catch (e) {}
   };
 
   // 4. Clear Bets
   const handleClearBets = () => {
     if (gameState.phase !== "BETTING") return;
-    const totalBet = activeBets.ANDAR + activeBets.BAHAR;
+    const totalBet = (activeBets.ANDAR || 0) + (activeBets.BAHAR || 0);
     if (totalBet === 0) return;
 
     // Refund

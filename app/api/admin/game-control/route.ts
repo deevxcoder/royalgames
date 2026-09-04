@@ -8,7 +8,7 @@ import {
   resetAllGameOverrides,
 } from "@/lib/gameControlManager";
 import { tickAndGetState } from "@/lib/serverCrashEngine";
-import { tickAndGetABState } from "@/lib/serverAndarBaharEngine";
+import { tickAndGetABState, getABLiveBetStats } from "@/lib/serverAndarBaharEngine";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,7 @@ export async function GET() {
     const skyRushLive = tickAndGetState("royal_skyrush");
     const cricketBlastLive = tickAndGetState("royal_cricketblast");
     const andarBaharLive = tickAndGetABState();
+    const abBetStats = getABLiveBetStats();
 
     return NextResponse.json({
       success: true,
@@ -51,6 +52,18 @@ export async function GET() {
           jokerCard: andarBaharLive.jokerCard?.display,
           countdownLeft: andarBaharLive.countdownLeft,
           roundId: andarBaharLive.roundId,
+          totalAndarBets: abBetStats.totalAndar,
+          totalBaharBets: abBetStats.totalBahar,
+          totalAndarCount: abBetStats.totalAndarCount,
+          totalBaharCount: abBetStats.totalBaharCount,
+          realAndar: abBetStats.realAndar,
+          realBahar: abBetStats.realBahar,
+          andarLiability: abBetStats.andarLiability,
+          baharLiability: abBetStats.baharLiability,
+          profitIfAndarWins: abBetStats.profitIfAndarWins,
+          profitIfBaharWins: abBetStats.profitIfBaharWins,
+          bestSideForCasino: abBetStats.bestSideForCasino,
+          recentBets: abBetStats.recentBets,
         },
       },
     });
