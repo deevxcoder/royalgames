@@ -290,27 +290,33 @@ export function recordABBet(side: "ANDAR" | "BAHAR", amount: number, username: s
 
 export function getABLiveBetStats() {
   const p = abStore.betsPool;
-  const totalAndar = p.andarAmount + p.simulatedAndar;
-  const totalBahar = p.baharAmount + p.simulatedBahar;
-  const totalAndarCount = p.andarCount + p.simulatedAndarCount;
-  const totalBaharCount = p.baharCount + p.simulatedBaharCount;
-  const andarLiability = Math.round(totalAndar * 1.80);
-  const baharLiability = Math.round(totalBahar * 1.90);
+  const realAndar = p.andarAmount;
+  const realBahar = p.baharAmount;
+  const realAndarCount = p.andarCount;
+  const realBaharCount = p.baharCount;
 
-  // Calculate net casino profit if Andar vs Bahar wins
-  const profitIfAndarWins = totalBahar - Math.round(totalAndar * 0.80);
-  const profitIfBaharWins = totalAndar - Math.round(totalBahar * 0.90);
-  const bestSideForCasino: "ANDAR" | "BAHAR" = profitIfAndarWins >= profitIfBaharWins ? "ANDAR" : "BAHAR";
+  // Real User Payout Liabilities
+  const andarLiability = Math.round(realAndar * 1.80);
+  const baharLiability = Math.round(realBahar * 1.90);
+
+  // Net casino profit based strictly on real user funds
+  const profitIfAndarWins = realBahar - Math.round(realAndar * 0.80);
+  const profitIfBaharWins = realAndar - Math.round(realBahar * 0.90);
+
+  let bestSideForCasino: "ANDAR" | "BAHAR" | null = null;
+  if (realAndar > 0 || realBahar > 0) {
+    bestSideForCasino = profitIfAndarWins >= profitIfBaharWins ? "ANDAR" : "BAHAR";
+  }
 
   return {
-    totalAndar,
-    totalBahar,
-    totalAndarCount,
-    totalBaharCount,
-    realAndar: p.andarAmount,
-    realBahar: p.baharAmount,
-    realAndarCount: p.andarCount,
-    realBaharCount: p.baharCount,
+    realAndar,
+    realBahar,
+    realAndarCount,
+    realBaharCount,
+    totalAndar: realAndar,
+    totalBahar: realBahar,
+    totalAndarCount: realAndarCount,
+    totalBaharCount: realBaharCount,
     andarLiability,
     baharLiability,
     profitIfAndarWins,

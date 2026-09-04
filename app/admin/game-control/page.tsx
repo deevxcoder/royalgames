@@ -637,23 +637,36 @@ export default function AdminGameControlPage() {
           </div>
         </div>
 
-        {/* 1. Live Money Pool & Liability Comparison Card */}
+        {/* 1. Real User Live Betting Pool & Liability Comparison Card */}
         <div className="bg-[#070a12] border border-slate-800/90 rounded-2xl p-4 sm:p-5 space-y-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              💰 Current Round Live Betting Pool & Net Liability
+              👤 Active Round Real User Bets & Net Liability
             </span>
-            {abLive?.bestSideForCasino && (
-              <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                ⭐ House Profit Maximizer: Force {abLive.bestSideForCasino}
+            {abLive?.bestSideForCasino ? (
+              <span className="text-[10px] font-mono font-black px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                ⭐ Lowest Liability: Force {abLive.bestSideForCasino}
+              </span>
+            ) : (
+              <span className="text-[10px] font-mono text-slate-400">
+                Equal / No Real Bets Yet
               </span>
             )}
           </div>
 
-          {/* Visual Percentage Distribution Bar */}
+          {/* Real Bets Percentage Distribution Bar */}
           {(() => {
-            const totalBets = (abLive?.totalAndarBets || 0) + (abLive?.totalBaharBets || 0) || 1;
-            const andarPct = Math.round(((abLive?.totalAndarBets || 0) / totalBets) * 100);
+            const realTotal = (abLive?.realAndar || 0) + (abLive?.realBahar || 0);
+            if (realTotal === 0) {
+              return (
+                <div className="p-3 bg-slate-900/50 border border-slate-800 rounded-xl text-center">
+                  <span className="text-xs font-mono text-slate-400">
+                    🟢 No real player bets placed yet in this round (₹0 on ANDAR • ₹0 on BAHAR)
+                  </span>
+                </div>
+              );
+            }
+            const andarPct = Math.round(((abLive?.realAndar || 0) / realTotal) * 100);
             const baharPct = 100 - andarPct;
             return (
               <div className="space-y-1">
@@ -662,55 +675,72 @@ export default function AdminGameControlPage() {
                   <div style={{ width: `${baharPct}%` }} className="h-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-300" />
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-mono font-bold">
-                  <span className="text-sky-400">ANDAR: {andarPct}% (₹{(abLive?.totalAndarBets || 0).toLocaleString()})</span>
-                  <span className="text-amber-400">BAHAR: {baharPct}% (₹{(abLive?.totalBaharBets || 0).toLocaleString()})</span>
+                  <span className="text-sky-400">ANDAR: {andarPct}% (₹{(abLive?.realAndar || 0).toLocaleString()} by {abLive?.realAndarCount || 0} users)</span>
+                  <span className="text-amber-400">BAHAR: {baharPct}% (₹{(abLive?.realBahar || 0).toLocaleString()} by {abLive?.realBaharCount || 0} users)</span>
                 </div>
               </div>
             );
           })()}
 
-          {/* Dual Pool Cards with Net GGR Projections */}
+          {/* Dual Real User Pool Cards with Net GGR Projections */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* ANDAR POOL STATS */}
+            {/* ANDAR REAL STATS */}
             <div className="p-3.5 rounded-xl bg-sky-950/30 border border-sky-500/30 space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-sky-400 uppercase">ANDAR (INSIDE)</span>
-                <span className="text-[10px] font-mono text-slate-400">{abLive?.totalAndarCount || 0} Total Bets</span>
+                <span className="text-xs font-black text-sky-400 uppercase">ANDAR (REAL USERS)</span>
+                <span className="text-[10px] font-mono text-slate-400">{abLive?.realAndarCount || 0} Real Bets</span>
               </div>
-              <div className="text-xl font-mono font-black text-white">
-                ₹{(abLive?.totalAndarBets || 0).toLocaleString()}
-                {abLive?.realAndar > 0 && (
-                  <span className="text-[10px] text-emerald-400 font-bold ml-2">(₹{abLive.realAndar.toLocaleString()} Real User)</span>
-                )}
+              <div className="text-2xl font-mono font-black text-white">
+                ₹{(abLive?.realAndar || 0).toLocaleString()}
               </div>
               <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-sky-900/40">
-                <span className="text-slate-400">If ANDAR Wins:</span>
+                <span className="text-slate-400">If ANDAR Wins (1.80x):</span>
                 <span className={`font-bold ${(abLive?.profitIfAndarWins || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                  House Profit: {(abLive?.profitIfAndarWins || 0) >= 0 ? "+" : ""}₹{(abLive?.profitIfAndarWins || 0).toLocaleString()}
+                  Casino Profit: {(abLive?.profitIfAndarWins || 0) >= 0 ? "+" : ""}₹{(abLive?.profitIfAndarWins || 0).toLocaleString()}
                 </span>
               </div>
             </div>
 
-            {/* BAHAR POOL STATS */}
+            {/* BAHAR REAL STATS */}
             <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/30 space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-amber-400 uppercase">BAHAR (OUTSIDE)</span>
-                <span className="text-[10px] font-mono text-slate-400">{abLive?.totalBaharCount || 0} Total Bets</span>
+                <span className="text-xs font-black text-amber-400 uppercase">BAHAR (REAL USERS)</span>
+                <span className="text-[10px] font-mono text-slate-400">{abLive?.realBaharCount || 0} Real Bets</span>
               </div>
-              <div className="text-xl font-mono font-black text-white">
-                ₹{(abLive?.totalBaharBets || 0).toLocaleString()}
-                {abLive?.realBahar > 0 && (
-                  <span className="text-[10px] text-emerald-400 font-bold ml-2">(₹{abLive.realBahar.toLocaleString()} Real User)</span>
-                )}
+              <div className="text-2xl font-mono font-black text-white">
+                ₹{(abLive?.realBahar || 0).toLocaleString()}
               </div>
               <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-amber-900/40">
-                <span className="text-slate-400">If BAHAR Wins:</span>
+                <span className="text-slate-400">If BAHAR Wins (1.90x):</span>
                 <span className={`font-bold ${(abLive?.profitIfBaharWins || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                  House Profit: {(abLive?.profitIfBaharWins || 0) >= 0 ? "+" : ""}₹{(abLive?.profitIfBaharWins || 0).toLocaleString()}
+                  Casino Profit: {(abLive?.profitIfBaharWins || 0) >= 0 ? "+" : ""}₹{(abLive?.profitIfBaharWins || 0).toLocaleString()}
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Recent Real Bets Ticker */}
+          {abLive?.recentBets && abLive.recentBets.length > 0 && (
+            <div className="pt-2 border-t border-slate-800">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                ⚡ Active Round Real Player Bets Log:
+              </span>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {abLive.recentBets.map((b: any) => (
+                  <span
+                    key={b.id}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border ${
+                      b.side === "ANDAR"
+                        ? "bg-sky-950/70 border-sky-500/40 text-sky-300"
+                        : "bg-amber-950/70 border-amber-500/40 text-amber-300"
+                    }`}
+                  >
+                    {b.username}: ₹{b.amount.toLocaleString()} on {b.side}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 2. Large Force Winner Decision Panels (Live Override) */}
