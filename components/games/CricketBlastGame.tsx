@@ -104,6 +104,11 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
         serverStateRef.current = data;
         setIsReady(true);
 
+        // Update real crash multiplier immediately when provided by server in FLYING/CRASHED phase
+        if (typeof data.crashMultiplier === "number" && data.crashMultiplier > 0) {
+          setCrashMultiplier(data.crashMultiplier);
+        }
+
         const isNewRound = currentRoundIdRef.current !== data.roundId;
         if (isNewRound) {
           currentRoundIdRef.current = data.roundId;
@@ -195,13 +200,15 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
         }
       } else {
         // 3. CAUGHT (CRASHED) PHASE (Strict 3.5s cooldown)
-        const crashM = serverState.crashMultiplier || 1.0;
+        const crashM = serverState.crashMultiplier || multiplier || 1.0;
         setMultiplier((prev) => (prev !== crashM ? crashM : prev));
+        setCrashMultiplier(crashM);
         setCountdown(0);
 
         if (activePhaseRef.current !== "CRASHED") {
           activePhaseRef.current = "CRASHED";
           setGameState("CAUGHT");
+          setCrashMultiplier(crashM);
           sound.playSonicBoom();
           if (serverState.history) {
             setShotHistory(serverState.history.slice(0, 9));

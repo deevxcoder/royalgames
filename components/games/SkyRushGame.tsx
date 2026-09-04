@@ -230,6 +230,11 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
         serverStateRef.current = data;
         setIsReady(true);
 
+        // Update real crash multiplier immediately when provided by server in FLYING/CRASHED phase
+        if (typeof data.crashMultiplier === "number" && data.crashMultiplier > 0) {
+          setCrashMultiplier(data.crashMultiplier);
+        }
+
         const isNewRound = currentRoundIdRef.current !== data.roundId;
         if (isNewRound || !plannedPassengersRef.current.length) {
           currentRoundIdRef.current = data.roundId;
@@ -393,13 +398,15 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
         }
       } else {
         // 3. CRASHED REVIEW PHASE (Strict 3.5s cooldown)
-        const crashM = serverState.crashMultiplier || 1.0;
+        const crashM = serverState.crashMultiplier || multiplier || 1.0;
         setMultiplier((prev) => (prev !== crashM ? crashM : prev));
+        setCrashMultiplier(crashM);
         setCountdown(0);
 
         if (activePhaseRef.current !== "CRASHED") {
           activePhaseRef.current = "CRASHED";
           setGameState("CRASHED");
+          setCrashMultiplier(crashM);
           sound.playSonicBoom();
           if (serverState.history) {
             setFlightHistory(serverState.history.slice(0, 12));
