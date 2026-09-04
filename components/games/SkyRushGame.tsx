@@ -263,6 +263,11 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
       const crashTime = serverState.crashTime;
       const roundId = serverState.roundId;
 
+      // Authoritative crashed condition: only crash if server states CRASHED or if crashTime is known and elapsed
+      const isCrashedPhase =
+        serverState.phase === "CRASHED" ||
+        (typeof crashTime === "number" && crashTime > 0 && accurateServerNow >= crashTime);
+
       if (accurateServerNow < flightStart) {
         // 1. COUNTDOWN PHASE (Strict 10.0s window)
         const remainingMs = Math.max(0, flightStart - accurateServerNow);
@@ -280,11 +285,12 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
           setPanel1((prev) => ({ ...prev, hasCashedOut: false, cashedOutMult: null }));
           setPanel2((prev) => ({ ...prev, hasCashedOut: false, cashedOutMult: null }));
         }
-      } else if (accurateServerNow < crashTime) {
+      } else if (!isCrashedPhase) {
         // 2. FLYING PHASE
         const elapsedSec = Math.max(0, (accurateServerNow - flightStart) / 1000);
+        const targetCap = serverState.crashMultiplier || 1000;
         const currentMult = Number(
-          Math.min(serverState.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2)
+          Math.min(targetCap, calculateAscentMultiplier(elapsedSec)).toFixed(2)
         );
 
         setMultiplier((prev) => (prev !== currentMult ? currentMult : prev));
@@ -323,7 +329,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
         let hasPlayerUpdates = false;
 
         plannedPassengersRef.current.forEach((p) => {
-          if (!cashedPassengerIdsRef.current.has(p.id) && p.plannedCashout <= currentMult && currentMult < serverState.crashMultiplier) {
+          if (!cashedPassengerIdsRef.current.has(p.id) && p.plannedCashout <= currentMult && currentMult < (serverState.crashMultiplier || 1000)) {
             cashedPassengerIdsRef.current.add(p.id);
             const win = Math.round(p.bet * currentMult);
             hasPlayerUpdates = true;
@@ -369,7 +375,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
           p1.autoCashoutEnabled &&
           p1.autoCashoutMult > 1.0 &&
           currentMult >= p1.autoCashoutMult &&
-          currentMult < serverState.crashMultiplier
+          currentMult < (serverState.crashMultiplier || 1000)
         ) {
           triggerCashout(1, p1.autoCashoutMult);
         }
@@ -381,7 +387,7 @@ export const SkyRushGame: React.FC<SkyRushGameProps> = ({
           p2.autoCashoutEnabled &&
           p2.autoCashoutMult > 1.0 &&
           currentMult >= p2.autoCashoutMult &&
-          currentMult < serverState.crashMultiplier
+          currentMult < (serverState.crashMultiplier || 1000)
         ) {
           triggerCashout(2, p2.autoCashoutMult);
         }

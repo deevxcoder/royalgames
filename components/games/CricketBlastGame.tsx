@@ -133,6 +133,11 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
       const crashTime = serverState.crashTime;
       const roundId = serverState.roundId;
 
+      // Authoritative crashed condition: only crash if server states CRASHED or if crashTime is known and elapsed
+      const isCrashedPhase =
+        serverState.phase === "CRASHED" ||
+        (typeof crashTime === "number" && crashTime > 0 && accurateServerNow >= crashTime);
+
       if (accurateServerNow < flightStart) {
         // 1. COUNTDOWN PHASE (Strict 10.0s window)
         const remainingMs = Math.max(0, flightStart - accurateServerNow);
@@ -146,11 +151,12 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
           setCrashMultiplier(serverState.crashMultiplier || 2.5);
           setHasCashedOut(false);
         }
-      } else if (accurateServerNow < crashTime) {
+      } else if (!isCrashedPhase) {
         // 2. AIRBORNE (FLYING) PHASE
         const elapsedSec = Math.max(0, (accurateServerNow - flightStart) / 1000);
+        const targetCap = serverState.crashMultiplier || 1000;
         const currentMult = Number(
-          Math.min(serverState.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2)
+          Math.min(targetCap, calculateAscentMultiplier(elapsedSec)).toFixed(2)
         );
 
         setMultiplier((prev) => (prev !== currentMult ? currentMult : prev));
@@ -183,7 +189,7 @@ export const CricketBlastGame: React.FC<CricketBlastGameProps> = ({
           autoCashoutEnabledRef.current &&
           autoCashoutMultRef.current > 1.0 &&
           currentMult >= autoCashoutMultRef.current &&
-          currentMult < serverState.crashMultiplier
+          currentMult < (serverState.crashMultiplier || 1000)
         ) {
           triggerCashout(autoCashoutMultRef.current);
         }

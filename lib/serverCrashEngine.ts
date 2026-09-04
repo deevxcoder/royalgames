@@ -159,93 +159,155 @@ export function computeHourRounds(gameUid: string, hourIndex: number, rtp?: numb
   return rounds;
 }
 
+interface LiveRoundState {
+  roundSequence: number;
+  roundId: string;
+  crashMultiplier: number;
+  flightDurationMs: number;
+  countdownStart: number;
+  flightStart: number;
+  crashTime: number;
+  crashedEndTime: number;
+  isOverrideApplied: boolean;
+}
+
+const engineStoreKey = Symbol.for("royal_games_crash_engine_store_v3");
+const engineStore: Record<
+  string,
+  {
+    currentRound: LiveRoundState | null;
+    history: number[];
+    lastConsumedRoundId: string | null;
+    roundCounter: number;
+  }
+> = (globalThis as any)[engineStoreKey] || {};
+(globalThis as any)[engineStoreKey] = engineStore;
+
+function getOrCreateStore(gameUid: string) {
+  if (!engineStore[gameUid]) {
+    engineStore[gameUid] = {
+      currentRound: null,
+      history: [1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2, 8.45, 1.45, 24.18],
+      lastConsumedRoundId: null,
+      roundCounter: Math.floor(Date.now() / 30000),
+    };
+  }
+  return engineStore[gameUid];
+}
+
 // Advance game clock authoritatively and deterministically based on absolute real-time clock
 export function tickAndGetState(gameUid: string = "royal_skyrush", targetTime?: number): GlobalCrashState {
   const now = targetTime ?? Date.now();
-  const HOUR_MS = 3600000;
-  const hourIndex = Math.floor(now / HOUR_MS);
+  const store = getOrCreateStore(gameUid);
 
-  const curRounds = computeHourRounds(gameUid, hourIndex);
-  let activeRoundIndex = curRounds.findIndex(
-    (r) => now >= r.countdownStart && now < r.crashedEndTime
-  );
+  const startNewRound = (startTime: number): LiveRoundState => {
+    store.roundCounter += 1;
+    const roundSeq = store.roundCounter;
+    const hourIndex = Math.floor(startTime / 3600000);
+    const roundInHour = roundSeq % 1000;
 
-  let activeRound: InternalRoundSchedule;
-  if (activeRoundIndex !== -1) {
-    activeRound = curRounds[activeRoundIndex];
-  } else {
-    // If exact boundary or past hour end before next hour computes
-    if (now >= curRounds[curRounds.length - 1].crashedEndTime) {
-      const nextHourRounds = computeHourRounds(gameUid, hourIndex + 1);
-      activeRound = nextHourRounds[0] || curRounds[curRounds.length - 1];
-      activeRoundIndex = 0;
+    const override = getGameOverride(gameUid);
+    let crashM: number;
+    let isOverride = false;
+
+    if (override && override.mode === "FORCED" && (override as any).forcedMultiplier) {
+      crashM = (override as any).forcedMultiplier as number;
+      isOverride = true;
     } else {
-      activeRound = curRounds[0];
-      activeRoundIndex = 0;
+      crashM = generateDeterministicCrash(gameUid, hourIndex, roundInHour);
     }
-  }
 
-  // Intercept with Studio Manual Outcome Override (God Mode)
-  const override = getGameOverride(gameUid);
-  if (override && override.mode === "FORCED" && (override as any).forcedMultiplier) {
-    const forcedM = (override as any).forcedMultiplier as number;
-    const forcedFlightDurMs = Math.round(calculateFlightDurationSeconds(forcedM) * 1000);
-    activeRound = {
-      ...activeRound,
-      crashMultiplier: forcedM,
-      flightDurationMs: forcedFlightDurMs,
-      crashTime: activeRound.flightStart + forcedFlightDurMs,
-      crashedEndTime: activeRound.flightStart + forcedFlightDurMs + CRASHED_DURATION_MS,
+    const flightDurMs = Math.round(calculateFlightDurationSeconds(crashM) * 1000);
+    const countdownStart = startTime;
+    const flightStart = countdownStart + COUNTDOWN_DURATION_MS;
+    const crashTime = flightStart + flightDurMs;
+    const crashedEndTime = crashTime + CRASHED_DURATION_MS;
+
+    return {
+      roundSequence: roundSeq,
+      roundId: `RND_${gameUid.toUpperCase()}_${countdownStart}_${roundSeq}`,
+      crashMultiplier: crashM,
+      flightDurationMs: flightDurMs,
+      countdownStart,
+      flightStart,
+      crashTime,
+      crashedEndTime,
+      isOverrideApplied: isOverride,
     };
+  };
+
+  if (!store.currentRound) {
+    store.currentRound = startNewRound(now);
   }
 
-  // Compile history array from recent completed rounds
-  const history: number[] = [];
-  // 1. Collect from current hour preceding rounds
-  for (let i = activeRoundIndex - 1; i >= 0 && history.length < 20; i--) {
-    history.push(curRounds[i].crashMultiplier);
+  // Advance completed rounds cleanly
+  while (now >= store.currentRound.crashedEndTime) {
+    const finishedRound = store.currentRound;
+    if (store.lastConsumedRoundId !== finishedRound.roundId) {
+      store.lastConsumedRoundId = finishedRound.roundId;
+      store.history.unshift(finishedRound.crashMultiplier);
+      if (store.history.length > 20) store.history.pop();
+
+      if (finishedRound.isOverrideApplied) {
+        consumeGameOverride(gameUid);
+      }
+    }
+
+    let nextStartTime = finishedRound.crashedEndTime;
+    if (now - nextStartTime > 30000) {
+      nextStartTime = now;
+    }
+    store.currentRound = startNewRound(nextStartTime);
   }
-  // 2. If needed, supplement from previous hour rounds
-  if (history.length < 20 && hourIndex > 0) {
-    const prevHourRounds = computeHourRounds(gameUid, hourIndex - 1);
-    for (let i = prevHourRounds.length - 1; i >= 0 && history.length < 20; i--) {
-      history.push(prevHourRounds[i].crashMultiplier);
+
+  // If in COUNTDOWN, check if an admin just applied or cleared a God Mode override
+  if (now < store.currentRound.flightStart) {
+    const override = getGameOverride(gameUid);
+    if (override && override.mode === "FORCED" && (override as any).forcedMultiplier) {
+      const forcedM = (override as any).forcedMultiplier as number;
+      if (store.currentRound.crashMultiplier !== forcedM) {
+        const forcedFlightDurMs = Math.round(calculateFlightDurationSeconds(forcedM) * 1000);
+        store.currentRound.crashMultiplier = forcedM;
+        store.currentRound.flightDurationMs = forcedFlightDurMs;
+        store.currentRound.crashTime = store.currentRound.flightStart + forcedFlightDurMs;
+        store.currentRound.crashedEndTime = store.currentRound.crashTime + CRASHED_DURATION_MS;
+        store.currentRound.isOverrideApplied = true;
+      }
+    } else if (override && override.mode === "AUTO" && store.currentRound.isOverrideApplied) {
+      const hourIndex = Math.floor(store.currentRound.countdownStart / 3600000);
+      const roundInHour = store.currentRound.roundSequence % 1000;
+      const normalCrash = generateDeterministicCrash(gameUid, hourIndex, roundInHour);
+      const flightDurMs = Math.round(calculateFlightDurationSeconds(normalCrash) * 1000);
+      store.currentRound.crashMultiplier = normalCrash;
+      store.currentRound.flightDurationMs = flightDurMs;
+      store.currentRound.crashTime = store.currentRound.flightStart + flightDurMs;
+      store.currentRound.crashedEndTime = store.currentRound.crashTime + CRASHED_DURATION_MS;
+      store.currentRound.isOverrideApplied = false;
     }
   }
-  // Fallback defaults if beginning of epoch
-  if (history.length === 0) {
-    history.push(1.84, 2.12, 1.05, 4.5, 12.8, 1.95, 3.2, 8.45, 1.45, 24.18);
-  }
 
+  const activeRound = store.currentRound;
   let phase: CrashPhase;
   let currentMultiplier = 1.0;
   let countdownLeft = 0;
   let phaseStartTime = activeRound.countdownStart;
-  let flightStartTime: number | null = null;
 
   if (now < activeRound.flightStart) {
-    // In 10.0s COUNTDOWN
     phase = "COUNTDOWN";
     phaseStartTime = activeRound.countdownStart;
-    const remainingMs = Math.max(0, activeRound.flightStart - now);
-    countdownLeft = Number((remainingMs / 1000).toFixed(1));
+    countdownLeft = Number((Math.max(0, activeRound.flightStart - now) / 1000).toFixed(1));
     currentMultiplier = 1.0;
-    flightStartTime = null;
   } else if (now < activeRound.crashTime) {
-    // In FLYING
     phase = "FLYING";
     phaseStartTime = activeRound.flightStart;
-    flightStartTime = activeRound.flightStart;
     const elapsedSec = (now - activeRound.flightStart) / 1000;
     currentMultiplier = Number(
       Math.min(activeRound.crashMultiplier, calculateAscentMultiplier(elapsedSec)).toFixed(2)
     );
     countdownLeft = 0;
   } else {
-    // In CRASHED review (3.5s pause)
     phase = "CRASHED";
     phaseStartTime = activeRound.crashTime;
-    flightStartTime = activeRound.flightStart;
     currentMultiplier = activeRound.crashMultiplier;
     countdownLeft = 0;
   }
@@ -266,6 +328,6 @@ export function tickAndGetState(gameUid: string = "royal_skyrush", targetTime?: 
     flightStart: activeRound.flightStart,
     crashTime: activeRound.crashTime,
     crashedEndTime: activeRound.crashedEndTime,
-    history,
+    history: store.history,
   };
 }
